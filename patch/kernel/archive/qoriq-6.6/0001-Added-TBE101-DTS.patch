@@ -1,0 +1,292 @@
+From b485edfe9daa4646e9b5b44db8839d1c528e3c1e Mon Sep 17 00:00:00 2001
+From: Siarhei Yasinski <siarhei.yasinski@sintecs.eu>
+Date: Tue, 12 Nov 2024 16:10:11 +0200
+Subject: [PATCH] Added TBE101 DTS
+
+---
+ arch/arm64/boot/dts/freescale/Makefile   |   1 +
+ arch/arm64/boot/dts/freescale/tbe101.dts | 190 +++++++++++++++++++++++
+ include/dt-bindings/net/ti-dp83867.h     |  60 +++++++
+ 3 files changed, 251 insertions(+)
+ create mode 100644 arch/arm64/boot/dts/freescale/tbe101.dts
+
+diff --git a/arch/arm64/boot/dts/freescale/Makefile b/arch/arm64/boot/dts/freescale/Makefile
+index 89aee6c92..e74b114d8 100644
+--- a/arch/arm64/boot/dts/freescale/Makefile
++++ b/arch/arm64/boot/dts/freescale/Makefile
+@@ -34,6 +34,7 @@ dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-lx2160a-honeycomb.dtb
+ dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-lx2160a-qds.dtb
+ dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-lx2160a-rdb.dtb
+ dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-lx2162a-qds.dtb
++dtb-$(CONFIG_ARCH_LAYERSCAPE) += tbe101.dtb
+ 
+ fsl-ls1028a-qds-13bb-dtbs := fsl-ls1028a-qds.dtb fsl-ls1028a-qds-13bb.dtbo
+ fsl-ls1028a-qds-65bb-dtbs := fsl-ls1028a-qds.dtb fsl-ls1028a-qds-65bb.dtbo
+diff --git a/arch/arm64/boot/dts/freescale/tbe101.dts b/arch/arm64/boot/dts/freescale/tbe101.dts
+new file mode 100644
+index 000000000..fd72cc463
+--- /dev/null
++++ b/arch/arm64/boot/dts/freescale/tbe101.dts
+@@ -0,0 +1,190 @@
++/*
++ * Device Tree file for Scalys Trustbox.
++ *
++ * Copyright 2019 Scalys B.V.
++ *
++ * Copyright 2016 Freescale Semiconductor, Inc.
++ *
++ *     This library is free software; you can redistribute it and/or
++ *     modify it under the terms of the GNU General Public License as
++ *     published by the Free Software Foundation; either version 2 of the
++ *     License, or (at your option) any later version.
++ *
++ *     This library is distributed in the hope that it will be useful,
++ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *     GNU General Public License for more details.
++ */
++/dts-v1/;
++
++#include "fsl-ls1012a.dtsi"
++#include <dt-bindings/net/ti-dp83867.h>
++
++/ {
++	model = "Trustbox";
++	compatible = "fsl,ls1012a";
++
++	aliases {
++		ethernet0 = &pfe_mac0;
++		ethernet1 = &pfe_mac1;
++		serial0 = &duart0;
++		usb = &usb0;
++	};
++};
++
++&usb0 {
++	/delete-property/ dma-coherent;
++};
++
++&duart0 {
++	status = "okay";
++};
++
++&i2c0 {
++	status = "okay";
++};
++
++&dspi {
++        bus-num = <0>;
++        status = "okay";
++};
++
++&qspi {
++	status = "okay";
++	qflash0: s25fs512s@0 {
++		compatible = "spansion,m25p80";
++		#address-cells = <1>;
++		#size-cells = <1>;
++		spi-max-frequency = <20000000>;
++		m25p,fast-read;
++		reg = <0>;
++		spi-rx-bus-width = <1>;
++		spi-tx-bus-width = <1>;
++	};
++};
++
++&sata {
++	status = "okay";
++};
++
++&gpio0 {
++		ngpios = <32>;
++		gpio-line-names =   "RPI_GPIO1_00", /* UART_TXD */
++							"RPI_GPIO1_01", /* UART_RXD */
++							"RPI_GPIO1_02", /* I2C_SCL */
++							"RPI_GPIO1_03", /* I2C_SDA */
++							"reserved",
++							"reserved",
++							"reserved",
++							"reserved",
++							"reserved",
++							"reserved",
++							"reserved",
++							"reserved",
++							"reserved",
++							"reserved",
++							"reserved",
++							"reserved",
++							"reserved",
++							"reserved",
++							"reserved",
++							"reserved",
++							"reserved",
++							"reserved",
++							"CPU_IRQ",
++							"reserved",
++							"RPI_GPIO1_24", /* SPI_MOSI */
++							"RPI_GPIO1_25", /* N_SPI_CE0 */
++							"RPI_GPIO1_26", /* N_SPI_CE1 */
++							"RPI_GPIO1_27", /* N_SPI_CE2 */
++							"RPI_GPIO1_28", /* SPI_MISO */
++							"RPI_GPIO1_29", /* SPI_CLK */
++							"reserved",
++							"reserved";
++};
++
++&gpio1 {
++		ngpios = <18>;
++		gpio-line-names =   "M2_GPIO2_00",
++							"M2_GPIO2_01",
++							"M2_GPIO2_02",
++							"QPSI_A_MUX_SEL",
++							"RPI_GPIO2_04",
++							"RPI_GPIO2_05",
++							"RPI_GPIO2_06",
++							"RPI_GPIO2_07",
++							"reserved",
++							"RPI_GPIO2_09",
++							"RPI_GPIO2_10",
++							"M2_CFG_1",
++							"M2_CFG_0",
++							"M2_CFG_2",
++							"M2_CFG_3",
++							"reserved",
++							"reserved",
++							"TMP_DETECT_N";
++};
++
++&esdhc0 {
++	sd-uhs-sdr104;
++	sd-uhs-sdr50;
++	sd-uhs-sdr25;
++	sd-uhs-sdr12;
++	status = "okay";
++};
++
++&pfe {
++	status = "okay";
++	#address-cells = <1>;
++	#size-cells = <0>;
++
++	pfe_mac0: ethernet@0 {
++		compatible = "fsl,pfe-gemac-port";
++		#address-cells = <1>;
++		#size-cells = <0>;
++		reg = <0x0>;	/* GEM_ID */
++		fsl,mdio-mux-val = <0x0>;
++		phy-mode = "sgmii";
++		phy-handle = <&sgmii_phy1>;
++	};
++
++	pfe_mac1: ethernet@1 {
++		compatible = "fsl,pfe-gemac-port";
++		#address-cells = <1>;
++		#size-cells = <0>;
++		reg = <0x1>;	/* GEM_ID */
++		fsl,mdio-mux-val = <0x0>;
++		phy-mode = "sgmii";
++		phy-handle = <&sgmii_phy2>;
++	};
++
++	mdio@0 {
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		sgmii_phy1: ethernet-phy@1 {
++			reg = <0x1>;
++			compatible = "ethernet-phy-ieee802.3-c22";
++			ti,fifo-depth = <DP83867_PHYCR_FIFO_DEPTH_4_B_NIB>;
++			ti,led-function = <(DP83867_LED0(FUNC_LINK_ACT) |
++					    DP83867_LED1(FUNC_LINK))>;
++			ti,led-ctrl = <(DP83867_LED0(CTRL_ACTIVE_HIGH) |
++					DP83867_LED1(CTRL_ACTIVE_HIGH) |
++					DP83867_LED2(CTRL_FORCE_LOW) |
++					DP83867_LED3(CTRL_FORCE_LOW))>;
++
++		};
++
++		sgmii_phy2: ethernet-phy@2 {
++			reg = <0x2>;
++			compatible = "ethernet-phy-ieee802.3-c22";
++			ti,fifo-depth = <DP83867_PHYCR_FIFO_DEPTH_4_B_NIB>;
++			ti,led-function = <(DP83867_LED0(FUNC_LINK_ACT) |
++					    DP83867_LED1(FUNC_LINK))>;
++			ti,led-ctrl = <(DP83867_LED0(CTRL_ACTIVE_HIGH) |
++					DP83867_LED1(CTRL_ACTIVE_HIGH) |
++					DP83867_LED2(CTRL_FORCE_LOW) |
++					DP83867_LED3(CTRL_FORCE_LOW))>;
++		};
++	};
++};
+diff --git a/include/dt-bindings/net/ti-dp83867.h b/include/dt-bindings/net/ti-dp83867.h
+index 6fc4b445d..f3e3866d2 100644
+--- a/include/dt-bindings/net/ti-dp83867.h
++++ b/include/dt-bindings/net/ti-dp83867.h
+@@ -50,4 +50,64 @@
+ #define DP83867_CLK_O_SEL_REF_CLK		0xC
+ /* Special flag to indicate clock should be off */
+ #define DP83867_CLK_O_SEL_OFF			0xFFFFFFFF
++
++/*
++ * Register values and helper macros for ti,led-function and ti,led-ctrl
++ *
++ * Example:
++ *
++ * ti,led-function = <(DP83867_LED0(FUNC_LINK_ACT) |
++ *                     DP83867_LED1(FUNC_LINK_1000))>;
++ * ti,led-ctrl = <(DP83867_LED0(CTRL_ACTIVE_HIGH) |
++ *                 DP83867_LED1(CTRL_ACTIVE_HIGH) |
++ *                 DP83867_LED2(CTRL_FORCE_LOW) |
++ *                 DP83867_LED3(CTRL_FORCE_LOW))>;
++ *
++ * It is recommended to force all unused LED pins to high or low level via
++ * led-ctrl (led-function is ignored in this case). LEDs that are missing from
++ * the configured value will be set to value 0x0 (FUNC_LINK and
++ * CTRL_ACTIVE_LOW).
++ */
++
++/* Link established */
++#define DP83867_LED_FUNC_LINK		0x0
++/* Receive or transmit activity */
++#define DP83867_LED_FUNC_ACT		0x1
++/* Transmit activity */
++#define DP83867_LED_FUNC_ACT_TX		0x2
++/* Receive activity */
++#define DP83867_LED_FUNC_ACT_RX		0x3
++/* Collision detected */
++#define DP83867_LED_FUNC_COLLISION	0x4
++/* 1000BT link established */
++#define DP83867_LED_FUNC_LINK_1000	0x5
++/* 100BTX link established */
++#define DP83867_LED_FUNC_LINK_100	0x6
++/* 10BT link established */
++#define DP83867_LED_FUNC_LINK_10	0x7
++/* 10/100BT link established */
++#define DP83867_LED_FUNC_LINK_10_100	0x8
++/* 100/1000BT link established */
++#define DP83867_LED_FUNC_LINK_100_1000	0x9
++/* Full duplex */
++#define DP83867_LED_FUNC_FULL_DUPLEX	0xa
++/* Link established, blink for transmit or receive activity */
++#define DP83867_LED_FUNC_LINK_ACT	0xb
++/* Receive Error or Transmit Error */
++#define DP83867_LED_FUNC_ERR		0xd
++/* Receive Error */
++#define DP83867_LED_FUNC_ERR_RX		0xe
++
++#define DP83867_LED_CTRL_ACTIVE_HIGH	0x4
++#define DP83867_LED_CTRL_ACTIVE_LOW	0x0
++#define DP83867_LED_CTRL_FORCE_HIGH	0x3
++#define DP83867_LED_CTRL_FORCE_LOW	0x1
++
++#define DP83867_LED_SHIFT(v, s)		((DP83867_LED_##v) << (s))
++
++#define DP83867_LED0(v)			DP83867_LED_SHIFT(v, 0)
++#define DP83867_LED1(v)			DP83867_LED_SHIFT(v, 4)
++#define DP83867_LED2(v)			DP83867_LED_SHIFT(v, 8)
++#define DP83867_LED3(v)			DP83867_LED_SHIFT(v, 12)
++
+ #endif
+-- 
+2.34.1
+

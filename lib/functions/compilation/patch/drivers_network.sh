@@ -698,6 +698,45 @@ driver_rtl8723DU() {
 	fi
 }
 
+driver_rtl8723BU() {
+
+	# Wireless drivers for Realtek 8723BU chipsets
+
+	if linux-version compare "${version}" ge 5.0 && linux-version compare "${version}" le 6.7; then
+
+		# Attach to specific commit (was "branch:master")
+		local rtl8723buver='commit:af3a408d6399655b0db23c2c8720436ca725ca47' # Commit date: Mar 3, 2024 (please update when updating commit ref)
+
+		display_alert "Adding" "Wireless drivers for Realtek 8723BU chipsets ${rtl8723buver}" "info"
+
+		fetch_from_repo "$GITHUB_SOURCE/lwfinger/rtl8723bu" "rtl8723bu" "${rtl8723buver}" "yes" # https://github.com/lwfinger/rtl8723bu
+		cd "$kerneldir" || exit
+		rm -rf "$kerneldir/drivers/net/wireless/rtl8723bu"
+		mkdir -p "$kerneldir/drivers/net/wireless/rtl8723bu/"
+		cp -R "${SRC}/cache/sources/rtl8723bu/${rtl8723buver#*:}"/{core,hal,include,os_dep,platform} \
+			"$kerneldir/drivers/net/wireless/rtl8723bu"
+
+		# Makefile
+		cp "${SRC}/cache/sources/rtl8723bu/${rtl8723buver#*:}"/Makefile \
+			"$kerneldir/drivers/net/wireless/rtl8723bu/Makefile"
+
+		# Kconfig will be added with the patch
+
+		# Disable debug
+		sed -i "s/^CONFIG_RTW_DEBUG.*/CONFIG_RTW_DEBUG = n/" \
+			"$kerneldir/drivers/net/wireless/rtl8723bu/Makefile"
+
+		# Add to section Makefile
+		echo "obj-\$(CONFIG_RTL8723BU) += rtl8723bu/" >> "$kerneldir/drivers/net/wireless/Makefile"
+		sed -i '/source "drivers\/net\/wireless\/ti\/Kconfig"/a source "drivers\/net\/wireless\/rtl8723bu\/Kconfig"' \
+			"$kerneldir/drivers/net/wireless/Kconfig"
+
+		process_patch_file "${SRC}/patch/misc/wireless-rtl8723bu-fixes.patch" "applying"
+
+	fi
+}
+
+
 driver_mt7921u_add_pids() {
 	# Add two popular cheap USB devices to the table
 	if linux-version compare "${version}" ge 6.1 && linux-version compare "${version}" lt 6.2; then

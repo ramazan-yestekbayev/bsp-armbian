@@ -1,0 +1,1590 @@
+From 6cca602bee08a23570e88236fd4aa4ff67e631f0 Mon Sep 17 00:00:00 2001
+From: Siarhei Yasinski <siarhei.yasinski@sintecs.eu>
+Date: Fri, 25 Oct 2024 16:23:34 +0300
+Subject: [PATCH] Added tbe101 support
+
+---
+ arch/arm/Kconfig                              |  12 +
+ arch/arm/cpu/armv8/Kconfig                    |   1 +
+ .../cpu/armv8/fsl-layerscape/ls1012a_serdes.c |   1 +
+ arch/arm/dts/Makefile                         |   2 +
+ arch/arm/dts/scalys-tbe101.dts                |  16 +
+ arch/arm/dts/scalys-tbe101.dtsi               |  70 +++
+ board/scalys/common                           |   1 +
+ board/scalys/tbe101/Kconfig                   |  58 ++
+ board/scalys/tbe101/Makefile                  |  10 +
+ .../scalys/tbe101/board_configuration_data.c  | 499 ++++++++++++++++++
+ .../scalys/tbe101/board_configuration_data.h  |  27 +
+ board/scalys/tbe101/eth.c                     | 112 ++++
+ board/scalys/tbe101/gpio.h                    |  64 +++
+ board/scalys/tbe101/tbe101.c                  | 204 +++++++
+ board/scalys/tbe101/usb.c                     | 139 +++++
+ board/scalys/tbe101/usb.h                     |  15 +
+ configs/tbe101_tfa_defconfig                  |  77 +++
+ drivers/mtd/spi/spi-nor-ids.c                 |   5 +
+ include/configs/tbe101.h                      |  79 +++
+ 19 files changed, 1392 insertions(+)
+ create mode 100644 arch/arm/dts/scalys-tbe101.dts
+ create mode 100644 arch/arm/dts/scalys-tbe101.dtsi
+ create mode 120000 board/scalys/common
+ create mode 100644 board/scalys/tbe101/Kconfig
+ create mode 100644 board/scalys/tbe101/Makefile
+ create mode 100644 board/scalys/tbe101/board_configuration_data.c
+ create mode 100644 board/scalys/tbe101/board_configuration_data.h
+ create mode 100644 board/scalys/tbe101/eth.c
+ create mode 100644 board/scalys/tbe101/gpio.h
+ create mode 100644 board/scalys/tbe101/tbe101.c
+ create mode 100644 board/scalys/tbe101/usb.c
+ create mode 100644 board/scalys/tbe101/usb.h
+ create mode 100644 configs/tbe101_tfa_defconfig
+ create mode 100644 include/configs/tbe101.h
+
+diff --git a/arch/arm/Kconfig b/arch/arm/Kconfig
+index ba0359fed5..f9534b4f6c 100644
+--- a/arch/arm/Kconfig
++++ b/arch/arm/Kconfig
+@@ -1569,6 +1569,17 @@ config TARGET_LS1012AQDS
+ 	  development platform that supports the QorIQ LS1012A
+ 	  Layerscape Architecture processor.
+ 
++config TARGET_TBE101
++	bool "Support Scalys Trustbox Edge 101"
++	select ARCH_LS1012A
++	select ARM64
++	select ARCH_SUPPORT_TFABOOT
++	select BOARD_LATE_INIT
++	imply SCSI
++	imply SCSI_AHCI
++	help
++	  Support for the Scalys Trustbox Edge 101.
++
+ config TARGET_LS1012ARDB
+ 	bool "Support ls1012ardb"
+ 	select ARCH_LS1012A
+@@ -2377,6 +2388,7 @@ source "board/freescale/ls1012aqds/Kconfig"
+ source "board/freescale/ls1012ardb/Kconfig"
+ source "board/freescale/ls1012afrdm/Kconfig"
+ source "board/freescale/lx2160a/Kconfig"
++source "board/scalys/tbe101/Kconfig"
+ source "board/grinn/chiliboard/Kconfig"
+ source "board/hisilicon/hikey/Kconfig"
+ source "board/hisilicon/hikey960/Kconfig"
+diff --git a/arch/arm/cpu/armv8/Kconfig b/arch/arm/cpu/armv8/Kconfig
+index 199335cd60..55f239147f 100644
+--- a/arch/arm/cpu/armv8/Kconfig
++++ b/arch/arm/cpu/armv8/Kconfig
+@@ -128,6 +128,7 @@ config PSCI_RESET
+ 		   !TARGET_LS1046AFRWY && \
+ 		   !TARGET_LS2081ARDB && !TARGET_LX2160ARDB && \
+ 		   !TARGET_LX2160AQDS && !TARGET_LX2162AQDS && \
++		   !TARGET_TBE101 && \
+ 		   !ARCH_UNIPHIER
+ 	help
+ 	  Most armv8 systems have PSCI support enabled in EL3, either through
+diff --git a/arch/arm/cpu/armv8/fsl-layerscape/ls1012a_serdes.c b/arch/arm/cpu/armv8/fsl-layerscape/ls1012a_serdes.c
+index c0e5455507..d88ada5495 100644
+--- a/arch/arm/cpu/armv8/fsl-layerscape/ls1012a_serdes.c
++++ b/arch/arm/cpu/armv8/fsl-layerscape/ls1012a_serdes.c
+@@ -17,6 +17,7 @@ static struct serdes_config serdes1_cfg_tbl[] = {
+ 	{0x0008, {NONE, NONE, NONE, SATA1} },
+ 	{0x3508, {SGMII_FM1_DTSEC1, PCIE1, NONE, SATA1} },
+ 	{0x3305, {SGMII_FM1_DTSEC1, SGMII_FM1_DTSEC2, NONE, PCIE1} },
++	{0x3308, {SGMII_FM1_DTSEC1, SGMII_FM1_DTSEC2, NONE, SATA1} },
+ 	{0x2205, {SGMII_2500_FM1_DTSEC1, SGMII_2500_FM1_DTSEC2, NONE, PCIE1} },
+ 	{0x2305, {SGMII_2500_FM1_DTSEC1, SGMII_FM1_DTSEC2, NONE, PCIE1} },
+ 	{0x9508, {TX_CLK, PCIE1, NONE, SATA1} },
+diff --git a/arch/arm/dts/Makefile b/arch/arm/dts/Makefile
+index 2d931c23fc..3665ed6df3 100644
+--- a/arch/arm/dts/Makefile
++++ b/arch/arm/dts/Makefile
+@@ -475,6 +475,8 @@ dtb-$(CONFIG_TARGET_SL28) += fsl-ls1028a-kontron-sl28.dtb \
+ 	fsl-ls1028a-kontron-sl28-var3.dtb \
+ 	fsl-ls1028a-kontron-sl28-var4.dtb \
+ 
++dtb-$(CONFIG_TARGET_TBE101) += scalys-tbe101.dtb
++
+ dtb-$(CONFIG_TARGET_TEN64) += fsl-ls1088a-ten64.dtb
+ 
+ dtb-$(CONFIG_TARGET_STEMMY) += ste-ux500-samsung-stemmy.dtb
+diff --git a/arch/arm/dts/scalys-tbe101.dts b/arch/arm/dts/scalys-tbe101.dts
+new file mode 100644
+index 0000000000..6a46bc659a
+--- /dev/null
++++ b/arch/arm/dts/scalys-tbe101.dts
+@@ -0,0 +1,16 @@
++// SPDX-License-Identifier: GPL-2.0+ OR X11
++/*
++ * Device Tree file for Freescale Layerscape-1012A family SoC.
++ *
++ * Copyright 2016, Freescale Semiconductor
++ */
++
++/dts-v1/;
++#include "scalys-tbe101.dtsi"
++
++/ {
++       chosen {
++               stdout-path = &duart0;
++       };
++};
++
+diff --git a/arch/arm/dts/scalys-tbe101.dtsi b/arch/arm/dts/scalys-tbe101.dtsi
+new file mode 100644
+index 0000000000..a921022455
+--- /dev/null
++++ b/arch/arm/dts/scalys-tbe101.dtsi
+@@ -0,0 +1,70 @@
++/*
++ * Copyright 2020 Scalys B.V.
++ * opensource@scalys.com
++ *
++ * SPDX-License-Identifier:	GPL-2.0+
++ */
++
++/include/ "fsl-ls1012a.dtsi"
++
++/ {
++	model = "Trustbox Edge 101 LS1012A";
++	aliases {
++		spi0 = &qspi;
++		spi1 = &dspi0;
++	};
++};
++
++&qspi {
++	bus-num = <0>;
++	status = "okay";
++
++	qflash0: s25fl128s@0 {
++		#address-cells = <1>;
++		#size-cells = <1>;
++		compatible = "spi-flash";
++		spi-max-frequency = <20000000>;
++		reg = <0>;
++	};
++};
++
++&sata {
++	status = "okay";
++};
++
++&dspi0 {
++	bus-num = <0>;
++	status = "okay";
++};
++
++&i2c0 {
++	status = "okay";
++};
++
++&i2c1 {
++	status = "disabled";
++};
++
++&duart0 {
++	status = "okay";
++};
++
++&duart1 {
++	status = "disabled";
++};
++
++&esdhc0 {
++	status = "okay";
++};
++
++&esdhc1 {
++	status = "disabled";
++};
++
++&usb0 {
++	status = "disabled";
++};
++
++&usb1 {
++	status = "okay";
++};
+diff --git a/board/scalys/common b/board/scalys/common
+new file mode 120000
+index 0000000000..7506078986
+--- /dev/null
++++ b/board/scalys/common
+@@ -0,0 +1 @@
++../freescale/common
+\ No newline at end of file
+diff --git a/board/scalys/tbe101/Kconfig b/board/scalys/tbe101/Kconfig
+new file mode 100644
+index 0000000000..de99d6f855
+--- /dev/null
++++ b/board/scalys/tbe101/Kconfig
+@@ -0,0 +1,58 @@
++if TARGET_TBE101
++
++config SYS_BOARD
++	default "tbe101"
++
++config SYS_VENDOR
++	default "scalys"
++
++config SYS_SOC
++	default "fsl-layerscape"
++
++config SYS_CONFIG_NAME
++	default "tbe101"
++
++if CHAIN_OF_TRUST
++config SYS_LS_PFE_ESBC_ADDR
++	hex "PFE Firmware HDR Addr"
++	default 0x40640000
++
++config SYS_LS_PFE_ESBC_LENGTH
++	hex "length of PFE Firmware HDR"
++	default 0xc00
++endif
++
++if FSL_PFE
++
++config BOARD_SPECIFIC_OPTIONS # dummy
++	def_bool y
++	select PHYLIB
++	imply PHY_REALTEK
++
++config SYS_LS_PFE_FW_ADDR
++	hex "Flash address of PFE firmware"
++	default 0x40a00000
++
++config SYS_LS_PFE_FW_LENGTH
++	hex "length of PFE firmware"
++	default 0x300000
++
++config DDR_PFE_PHYS_BASEADDR
++	hex "PFE DDR physical base address"
++	default 0x03800000
++
++config DDR_PFE_BASEADDR
++	hex "PFE DDR base address"
++	default 0x83800000
++
++config PFE_EMAC1_PHY_ADDR
++	hex "PFE DDR base address"
++	default 0x2
++
++config PFE_EMAC2_PHY_ADDR
++	hex "PFE DDR base address"
++	default 0x1
++
++endif
++
++endif
+diff --git a/board/scalys/tbe101/Makefile b/board/scalys/tbe101/Makefile
+new file mode 100644
+index 0000000000..54ec0bf72d
+--- /dev/null
++++ b/board/scalys/tbe101/Makefile
+@@ -0,0 +1,10 @@
++#
++# Copyright 2016 Freescale Semiconductor, Inc.
++#
++# SPDX-License-Identifier:      GPL-2.0+
++#
++
++obj-y += tbe101.o
++obj-y += usb.o
++obj-y += board_configuration_data.o
++obj-$(CONFIG_FSL_PFE) += eth.o
+diff --git a/board/scalys/tbe101/board_configuration_data.c b/board/scalys/tbe101/board_configuration_data.c
+new file mode 100644
+index 0000000000..8a422715b0
+--- /dev/null
++++ b/board/scalys/tbe101/board_configuration_data.c
+@@ -0,0 +1,499 @@
++/*
++ *Copyright 2019 Scalys B.V.
++ *opensource@scalys.com
++ *
++ *SPDX-License-Identifier:	GPL-2.0+
++ */
++#include <command.h>
++#include <linux/ctype.h>
++#include <linux/libfdt.h>
++#include <linux/delay.h>
++#include <fdt_support.h>
++#include <spi.h>
++#include <spi_flash.h>
++#include <linux/errno.h>
++#include <malloc.h>
++#include <asm/io.h>
++#include <dm.h>
++#include <malloc.h>
++#include <mapmem.h>
++#include <spi.h>
++#include <dm/device-internal.h>
++#include "board_configuration_data.h"
++#include "gpio.h"
++
++DECLARE_GLOBAL_DATA_PTR;
++
++int add_mac_addressess_to_env(const void *blob)
++{
++	const char *propname;
++	const void *value;
++	int prop_offset, len;
++	int count = 0;
++	char mac_string[19], eth_string[10];
++	uint8_t mac_address[6];
++
++	if (fdt_check_header(blob) != 0)
++	{
++		printf("Board Configuration Data FDT corrupt\n");
++		return -1;
++	}
++
++	int nodeoff = fdt_path_offset(blob, "/network");
++
++	if (nodeoff < 0)
++	{
++		printf("Network node not found\n");
++		return -1;
++	}
++	for (prop_offset = fdt_first_property_offset(blob, nodeoff); prop_offset > 0; prop_offset = fdt_next_property_offset(blob, prop_offset))
++	{
++		value = fdt_getprop_by_offset(blob, prop_offset, &propname, &len);
++		if (!value)
++		{
++			return -EINVAL;
++		}
++
++		memcpy(mac_address, value, 6);
++
++		if (count)
++		{
++			snprintf(eth_string, sizeof(eth_string), "eth%iaddr", count);
++		}
++		else
++		{
++			snprintf(eth_string, sizeof(eth_string), "ethaddr");
++		}
++
++		snprintf(mac_string, sizeof(mac_string),
++			"%02x:%02x:%02x:%02x:%02x:%02x",
++			mac_address[0], mac_address[1], mac_address[2],
++			mac_address[3], mac_address[4], mac_address[5]);
++
++		printf("%s :[ %s ]\n", propname, mac_string);
++
++		env_set(eth_string, mac_string);
++
++		count++;
++	}
++	printf("Done reading BCD\n");
++
++	return 0;
++}
++
++const char *get_qspi_flash_name(void)
++{
++	struct spi_flash * flash;
++
++	flash = spi_flash_probe(CONFIG_SF_DEFAULT_BUS,
++				    CONFIG_SF_DEFAULT_CS,
++				    CONFIG_SF_DEFAULT_SPEED,
++				    CONFIG_SF_DEFAULT_MODE);
++
++	if (!flash)
++	{
++		printf("probe failed\n");
++		return NULL;
++	}
++
++	return flash->name;
++}
++
++struct spi_flash *select_qspi_flash_device(enum trustbox_flash_types flash_type)
++{
++	struct ccsr_gpio *pgpio = (void*)(CONFIG_SYS_GPIO2);
++	struct udevice *flash_dev, *bus_dev;
++	int ret = 0;
++	unsigned int bus = CONFIG_SF_DEFAULT_BUS;
++	unsigned int cs = CONFIG_SF_DEFAULT_CS;
++	struct spi_flash * flash;
++
++	/*Remove previous DM device */
++	ret = spi_find_bus_and_cs(bus, cs, &bus_dev, &flash_dev);
++	if (!ret)
++	{
++		device_remove(flash_dev, DM_REMOVE_NORMAL);
++	}
++
++	setbits_be32(&pgpio->gpdir, QSPI_MUX_N_MASK);
++	switch (flash_type)
++	{
++		case PRIMARY_FLASH_DEVICE:
++			/*Revert chip select muxing to standard QSPI flash */
++			clrbits_be32(&pgpio->gpdat, QSPI_MUX_N_MASK);
++			/*Delay required (to meet RC time for button debouncing) before probing flash again.
++			 *Delay may be removed but the primary flash is only available after the delay */
++			udelay(75000);
++			break;
++		case RESCUE_FLASH_DEVICE:
++			/*Change chip select to rescue QSPI NOR flash */
++			setbits_be32(&pgpio->gpdat, QSPI_MUX_N_MASK);
++			break;
++		default:
++			break;
++	}
++
++	flash = spi_flash_probe(CONFIG_SF_DEFAULT_BUS,
++				    CONFIG_SF_DEFAULT_CS,
++				    CONFIG_SF_DEFAULT_SPEED,
++				    CONFIG_SF_DEFAULT_MODE);
++
++	if (!flash)
++	{
++		printf("probe failed\n");
++		return NULL;
++	}
++
++	return flash;
++}
++
++extern uint32_t crc32(uint32_t, const unsigned char *, unsigned int);
++
++const void *get_boardinfo_rescue_flash(void)
++{
++	struct spi_flash *rescue_flash_dev;
++	uint32_t bcd_data_length;
++	uint32_t read_length;
++	uint8_t *bcd_data = NULL;
++	uint8_t *read_data_buf;
++	uint32_t calculated_crc, received_crc;
++	int dtb_length;
++	int ret = 0;
++
++	/*Select and probe rescue flash */
++	rescue_flash_dev = select_qspi_flash_device(RESCUE_FLASH_DEVICE);
++
++	if (rescue_flash_dev == NULL)
++		goto err_no_free;
++
++	/*Read the last 4 bytes to determine the length of the DTB data */
++	ret = spi_flash_read(rescue_flash_dev, (BCD_FLASH_SIZE - 4), 4, (uint8_t*) &bcd_data_length);
++	if (ret != 0)
++	{
++		printf("Error reading bcd length\n");
++		goto err_no_free;
++	}
++
++	/*Convert length from big endianess to architecture endianess */
++	bcd_data_length = ntohl(bcd_data_length);
++	printf("bcd_data_length = %i\n", bcd_data_length);
++
++	if (bcd_data_length > BCD_FLASH_SIZE)
++	{
++		debug("BCD data length error %02x %02x %02x %02x\n",
++			((uint8_t*) &bcd_data_length)[0],
++			((uint8_t*) &bcd_data_length)[1],
++			((uint8_t*) &bcd_data_length)[2],
++			((uint8_t*) &bcd_data_length)[3]);
++		goto err_no_free;
++	}
++
++	/* Allocating memory for read buffer */
++	read_length = ((bcd_data_length + 255) / 256) * 256;
++	read_data_buf = (uint8_t*) malloc(read_length);
++	if (read_data_buf == NULL)
++	{
++		printf("Error locating memory for BCD data\n");
++		goto err_no_free;
++	}
++
++	/*Read the buffer with the DTB BCD data to memory */
++	ret = spi_flash_read(rescue_flash_dev, (BCD_FLASH_SIZE - read_length), read_length, read_data_buf);
++	debug("Read data from QSPI bus\n");
++	if (ret != 0)
++	{
++		printf("Error reading complete BCD data from EEPROM\n");
++		goto err_free;
++	}
++
++	/*Allocate, and verify memory for the BCD data */
++	bcd_data = (uint8_t*) malloc(bcd_data_length);
++	if (bcd_data == NULL)
++	{
++		free(read_data_buf);
++		printf("Error locating memory for BCD data\n");
++		goto err_no_free;
++	}
++	debug("Allocated memory for BCD data\n");
++
++	/* Copy the BCD data to the BCD buffer */
++	memcpy(bcd_data, read_data_buf + (read_length - bcd_data_length), bcd_data_length);
++	free(read_data_buf);
++
++	dtb_length = bcd_data_length - BCD_LENGTH_SIZE - BCD_HASH_SIZE;
++
++	/*Calculate CRC on read DTB data */
++	calculated_crc = crc32(0, bcd_data, dtb_length);
++
++	/*Received CRC is packed after the DTB data */
++	memcpy(&received_crc, &bcd_data[dtb_length], 4);
++
++	/*Convert CRC from big endianess to architecture endianess */
++	received_crc = ntohl(received_crc);
++
++	if (calculated_crc != received_crc)
++	{
++		printf("Checksum error. expected %08x, got %08x\n",
++			calculated_crc, received_crc);
++		goto err_free;
++	}
++
++	/*Select and probe normal flash */
++	rescue_flash_dev = select_qspi_flash_device(PRIMARY_FLASH_DEVICE);
++
++	/*Everything checked out, return the BCD data.
++	 *The caller is expected to free this data */
++	return bcd_data;
++
++err_free:
++	/*free the allocated buffer */
++	free(bcd_data);
++
++err_no_free:
++
++	/*Select and probe normal flash */
++	rescue_flash_dev = select_qspi_flash_device(PRIMARY_FLASH_DEVICE);
++	return NULL;
++}
++
++#ifndef CONFIG_SPL_BUILD
++
++#ifndef CONFIG_CMD_FDT_MAX_DUMP
++#define CONFIG_CMD_FDT_MAX_DUMP 64
++#endif
++
++/*
++ *Heuristic to guess if this is a string or concatenated strings.
++ */
++
++static int is_printable_string(const void *data, int len)
++{
++	const char *s = data;
++
++	/*zero length is not */
++	if (len == 0)
++		return 0;
++
++	/*must terminate with zero or '\n' */
++	if (s[len - 1] != '\0' && s[len - 1] != '\n')
++		return 0;
++
++	/*printable or a null byte (concatenated strings) */
++	while (((*s == '\0') || isprint(*s) || isspace(*s)) && (len > 0))
++	{
++		/*
++		 *If we see a null, there are three possibilities:
++		 *1) If len == 1, it is the end of the string, printable
++		 *2) Next character also a null, not printable.
++		 *3) Next character not a null, continue to check.
++		 */
++		if (s[0] == '\0')
++		{
++			if (len == 1)
++				return 1;
++			if (s[1] == '\0')
++				return 0;
++		}
++		s++;
++		len--;
++	}
++
++	/*Not the null termination, or not done yet: not printable */
++	if (*s != '\0' || (len != 0))
++		return 0;
++
++	return 1;
++}
++
++/*
++ *Print the property in the best format, a heuristic guess.  Print as
++ *a string, concatenated strings, a byte, word, double word, or (if all
++ *else fails) it is printed as a stream of bytes.
++ */
++static void print_data(const void *data, int len)
++{
++	int j;
++
++	/*no data, don't print */
++	if (len == 0)
++		return;
++
++	/*
++	 *It is a string, but it may have multiple strings (embedded '\0's).
++	 */
++	if (is_printable_string(data, len))
++	{
++		puts("\"");
++		j = 0;
++		while (j < len)
++		{
++			if (j > 0)
++				puts("\", \"");
++			puts(data);
++			j += strlen(data) + 1;
++			data += strlen(data) + 1;
++		}
++		puts("\"");
++		return;
++	}
++
++	if ((len % 4) == 0)
++	{
++		if (len > CONFIG_CMD_FDT_MAX_DUMP)
++			printf("*0x%p[0x%08x]", data, len);
++		else
++		{
++			const __be32 * p;
++
++			printf("<");
++			for (j = 0, p = data; j < len / 4; j++)
++				printf("0x%08x%s", fdt32_to_cpu(p[j]),
++					j < (len / 4 - 1) ? " " : "");
++			printf(">");
++		}
++	}
++	else
++	{ /*anything else... hexdump */
++		if (len > CONFIG_CMD_FDT_MAX_DUMP)
++			printf("*0x%p[0x%08x]", data, len);
++		else
++		{
++			const u8 * s;
++
++			printf("[");
++			for (j = 0, s = data; j < len; j++)
++				printf("%02x%s", s[j], j < len - 1 ? " " : "");
++			printf("]");
++		}
++	}
++}
++
++/*
++ *Recursively print (a portion of) the working_fdt.  The depth parameter
++ *determines how deeply nested the fdt is printed.
++ */
++#define MAX_LEVEL 4
++static int bcd_fdt_print(const void *address, int depth)
++{
++	static char tabs[MAX_LEVEL + 1] =
++		"\t\t\t\t\t";
++	const void *nodep; /*property node pointer */
++	int nodeoffset; /*node offset from libfdt */
++	int nextoffset; /*next node offset from libfdt */
++	uint32_t tag; /*tag */
++	int len; /*length of the property */
++	int level = 0; /*keep track of nesting level */
++	const struct fdt_property * fdt_prop;
++	const char *pathp;
++
++	nodeoffset = fdt_path_offset(address, "/");
++	if (nodeoffset< 0)
++	{
++		/*
++		 *Not found or something else bad happened.
++		 */
++		printf("libfdt fdt_path_offset() returned %s\n",
++			fdt_strerror(nodeoffset));
++		return 1;
++	}
++
++	/*
++	 *The user passed in a node path and no property,
++	 *print the node and all subnodes.
++	 */
++	while (level >= 0)
++	{
++		tag = fdt_next_tag(address, nodeoffset, &nextoffset);
++		switch (tag)
++		{
++			case FDT_BEGIN_NODE:
++				pathp = fdt_get_name(address, nodeoffset, NULL);
++				if (level <= depth)
++				{
++					if (pathp == NULL)
++						pathp = "/*NULL pointer error */";
++					if (*pathp == '\0')
++						pathp = "/"; /*root is nameless */
++					printf("%s%s {\n", &tabs[MAX_LEVEL - level], pathp);
++				}
++				level++;
++				if (level >= MAX_LEVEL)
++				{
++					printf("Nested too deep, aborting.\n");
++					return 1;
++				}
++				break;
++			case FDT_END_NODE:
++				level--;
++				if (level <= depth)
++					printf("%s};\n", &tabs[MAX_LEVEL - level]);
++				if (level == 0)
++				{
++					level = -1; /*exit the loop */
++				}
++				break;
++			case FDT_PROP:
++				fdt_prop = fdt_offset_ptr(address, nodeoffset,
++					sizeof(*fdt_prop));
++				pathp = fdt_string(address,
++					fdt32_to_cpu(fdt_prop->nameoff));
++				len = fdt32_to_cpu(fdt_prop->len);
++				nodep = fdt_prop->data;
++				if (len < 0)
++				{
++					printf("libfdt fdt_getprop(): %s\n",
++						fdt_strerror(len));
++					return 1;
++				}
++				else if (len == 0)
++				{ 		/*the property has no value */
++					if (level <= depth)
++						printf("%s%s;\n", &tabs[MAX_LEVEL - level],
++							pathp);
++				}
++				else
++				{
++					if (level <= depth)
++					{
++						printf("%s%s = ", &tabs[MAX_LEVEL - level],
++							pathp);
++						print_data(nodep, len);
++						printf(";\n");
++					}
++				}
++				break;
++			case FDT_NOP:
++				printf("%s/*NOP */\n", &tabs[MAX_LEVEL - level]);
++				break;
++			case FDT_END:
++				return 1;
++			default:
++				if (level <= depth)
++					printf("Unknown tag 0x%08X\n", tag);
++				return 1;
++		}
++		nodeoffset = nextoffset;
++	}
++	return 0;
++}
++
++int do_bcdinfo(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
++{
++	const void *bcd_dtc_blob;
++	int ret = 0;
++
++	bcd_dtc_blob = get_boardinfo_rescue_flash();
++
++	if (bcd_dtc_blob != NULL)
++	{
++		bcd_fdt_print(bcd_dtc_blob, 4);
++	}
++
++	return ret;
++}
++
++/*U_BOOT_CMD(name,maxargs,repeatable,command,"usage","help") */
++U_BOOT_CMD(bcdinfo, 1, 1, do_bcdinfo,
++	"Show the Board Configuration Data (stored in rescue flash)",
++	"");
++#endif
+diff --git a/board/scalys/tbe101/board_configuration_data.h b/board/scalys/tbe101/board_configuration_data.h
+new file mode 100644
+index 0000000000..dbc422d4f7
+--- /dev/null
++++ b/board/scalys/tbe101/board_configuration_data.h
+@@ -0,0 +1,27 @@
++/*
++ * Copyright 2019 Scalys B.V.
++ * opensource@scalys.com
++ *
++ * SPDX-License-Identifier:	GPL-2.0+
++ */
++
++#ifndef _BCD_H
++#define _BCD_H
++
++#define BCD_LENGTH_SIZE	4
++
++#define BCD_FLASH_SIZE 0x100000 /* 1 MBytes */
++
++#define BCD_HASH_SIZE	4
++
++enum trustbox_flash_types {
++	PRIMARY_FLASH_DEVICE,
++	RESCUE_FLASH_DEVICE,
++};
++
++const void* get_boardinfo_rescue_flash(void);
++const char* get_qspi_flash_name(void);
++int add_mac_addressess_to_env(const void* blob);
++
++#endif /* _BCD_H */
++
+diff --git a/board/scalys/tbe101/eth.c b/board/scalys/tbe101/eth.c
+new file mode 100644
+index 0000000000..f75ea64667
+--- /dev/null
++++ b/board/scalys/tbe101/eth.c
+@@ -0,0 +1,112 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Copyright 2015-2016 Freescale Semiconductor, Inc.
++ * Copyright 2017 NXP
++ * Copyright 2019 NXP
++ */
++
++#include <dm.h>
++#include <asm/io.h>
++#include <netdev.h>
++#include <fm_eth.h>
++#include <fsl_mdio.h>
++#include <malloc.h>
++#include <asm/types.h>
++#include <fsl_dtsec.h>
++#include <asm/arch/soc.h>
++#include <asm/arch-fsl-layerscape/config.h>
++#include <asm/arch-fsl-layerscape/immap_lsch2.h>
++#include <asm/arch/fsl_serdes.h>
++#include <net/pfe_eth/pfe_eth.h>
++#include <dm/platform_data/pfe_dm_eth.h>
++
++
++int pfe_eth_board_init(struct udevice *dev)
++{
++
++	struct mii_dev *bus;
++	struct pfe_mdio_info mac_mdio_info;
++	struct pfe_eth_dev *priv = dev_get_priv(dev);
++	struct ccsr_gur __iomem *gur = (void *)CFG_SYS_FSL_GUTS_ADDR;
++
++	int srds_s1 = in_be32(&gur->rcwsr[4]) &
++			FSL_CHASSIS2_RCWSR4_SRDS1_PRTCL_MASK;
++	srds_s1 >>= FSL_CHASSIS2_RCWSR4_SRDS1_PRTCL_SHIFT;
++
++	char mdio_name[10];
++	sprintf(mdio_name, "MDIO%d", priv->gemac_port);
++
++	mac_mdio_info.reg_base = (void*)priv->gem->gemac_base;
++	mac_mdio_info.name = mdio_name;
++
++	bus = pfe_mdio_init(&mac_mdio_info);
++	if (!bus) {
++		printf("Failed to register %s mdio", mdio_name);
++		return -1;
++	}
++
++	pfe_set_mdio(priv->gemac_port, miiphy_get_dev_by_name("MDIO0"));
++
++	switch (srds_s1) {
++	case 0x3508:
++		switch (priv->gemac_port) {
++		case 0:
++			pfe_set_phy_address_mode(priv->gemac_port,
++				priv->gem->phy_address,
++				PHY_INTERFACE_MODE_SGMII);
++			break;
++		case 1:
++			pfe_set_phy_address_mode(priv->gemac_port,
++				priv->gem->phy_address,
++				PHY_INTERFACE_MODE_RGMII_TXID);
++			break;
++		default:
++			break;
++		}
++
++	case 0x3308:
++		pfe_set_phy_address_mode(priv->gemac_port,
++			priv->gem->phy_address,
++			PHY_INTERFACE_MODE_SGMII);
++		break;
++	default:
++		printf("unsupported SerDes PRCTL= %d (%x)\n", srds_s1, srds_s1);
++		break;
++	}
++	return 0;
++}
++
++static struct pfe_eth_pdata pfe_pdata0 = {
++	.pfe_eth_pdata_mac = {
++		.iobase = (phys_addr_t)EMAC1_BASE_ADDR,
++		.phy_interface = 0,
++	},
++
++	.pfe_ddr_addr = {
++		.ddr_pfe_baseaddr = (void *)CONFIG_DDR_PFE_BASEADDR,
++		.ddr_pfe_phys_baseaddr = CONFIG_DDR_PFE_PHYS_BASEADDR,
++	},
++};
++
++static struct pfe_eth_pdata pfe_pdata1 = {
++	.pfe_eth_pdata_mac = {
++		.iobase = (phys_addr_t)EMAC2_BASE_ADDR,
++		.phy_interface = 1,
++	},
++
++	.pfe_ddr_addr = {
++		.ddr_pfe_baseaddr = (void *)CONFIG_DDR_PFE_BASEADDR,
++		.ddr_pfe_phys_baseaddr = CONFIG_DDR_PFE_PHYS_BASEADDR,
++	},
++};
++
++U_BOOT_DRVINFO(ls1012a_pfe0) = {
++	.name = "pfe_eth",
++	.plat = &pfe_pdata0,
++};
++
++U_BOOT_DRVINFO(ls1012a_pfe1) = {
++	.name = "pfe_eth",
++	.plat = &pfe_pdata1,
++};
++
+diff --git a/board/scalys/tbe101/gpio.h b/board/scalys/tbe101/gpio.h
+new file mode 100644
+index 0000000000..c66060be9d
+--- /dev/null
++++ b/board/scalys/tbe101/gpio.h
+@@ -0,0 +1,64 @@
++/*
++ * Copyright 2019 Scalys B.V.
++ * opensource@scalys.com
++ *
++ * SPDX-License-Identifier:	GPL-2.0+
++ */
++
++#ifndef GPIO_TRUSTBOX_H_
++#define GPIO_TRUSTBOX_H_
++
++/* GPIO1 and GPIO2 registers */
++#define CONFIG_SYS_GPIO1 0x2300000
++#define CONFIG_SYS_GPIO2 0x2310000
++#define GPIO_PIN_MASK(shift) (0x80000000 >> shift)
++
++/* =====================================================
++ * Trustbox board ExPI mapping (*pin name at ls1012a side)
++ * Note: The secondary options require modified RCW.
++ * =====================================================
++ *                 3V3 -| 1       2|- 5V0
++ *             I2C_SDA -| 3       4|- 5V0
++ *             I2C_SCL -| 5       6|- GND
++ *          CLK0_25MHZ -| 7       8|- UART_TXD
++ *                 GND -| 9      10|- UART_RXD
++ *   SPI_CE2/GPIO1_27* -|11      12|- GPIO2_04*
++ *           GPIO2_05* -|13      14|- GND
++ *           GPIO2_06* -|15      16|- GPIO2_07*
++ *                 3V3 -|17      18|- GPIO2_09*
++ *  SPI_MOSI/GPIO1_24* -|19      20|- GND
++ *  SPI_MISO/GPIO1_28* -|21      22|- GPIO2_10*
++ *   SPI_CLK/GPIO1_29* -|23      24|- SPI_CE0/GPIO1_25*
++ *                 GND -|25      26|- SPI_CE1/GPIO1_26*
++ */
++
++/* ExPI gpios */
++#define gpio1_24 GPIO_PIN_MASK(24) /* ExPI pin 19 */
++#define gpio1_25 GPIO_PIN_MASK(25) /* ExPI pin 24 */
++#define gpio1_26 GPIO_PIN_MASK(26) /* ExPI pin 26 */
++#define gpio1_27 GPIO_PIN_MASK(27) /* ExPI pin 11 */
++#define gpio1_28 GPIO_PIN_MASK(28) /* ExPI pin 21 */
++#define gpio1_29 GPIO_PIN_MASK(29) /* ExPI pin 23 */
++
++#define gpio2_04 GPIO_PIN_MASK(4)  /* ExPI pin 12 */
++#define gpio2_05 GPIO_PIN_MASK(5)  /* ExPI pin 13 */
++#define gpio2_06 GPIO_PIN_MASK(6)  /* ExPI pin 15 */
++#define gpio2_07 GPIO_PIN_MASK(7)  /* ExPI pin 16 */
++#define gpio2_09 GPIO_PIN_MASK(9)  /* ExPI pin 18 */
++#define gpio2_10 GPIO_PIN_MASK(10) /* ExPI pin 22 */
++
++/* M.2 gpios */
++#define gpio1_22 GPIO_PIN_MASK(22)
++#define gpio2_00 GPIO_PIN_MASK(0)
++#define gpio2_01 GPIO_PIN_MASK(1)
++#define gpio2_02 GPIO_PIN_MASK(2)
++#define M2_CFG1  GPIO_PIN_MASK(11) /* gpio2_11 */
++#define M2_CFG0  GPIO_PIN_MASK(12) /* gpio2_12 */
++#define M2_CFG2  GPIO_PIN_MASK(13) /* gpio2_13 */
++#define M2_CFG3  GPIO_PIN_MASK(14) /* gpio2_14 */
++
++/* Misc gpios */
++#define QSPI_MUX_N_MASK GPIO_PIN_MASK(3) /* gpio2_03 */
++
++#endif /* GPIO_TRUSTBOX_H_ */
++
+diff --git a/board/scalys/tbe101/tbe101.c b/board/scalys/tbe101/tbe101.c
+new file mode 100644
+index 0000000000..00e341fa70
+--- /dev/null
++++ b/board/scalys/tbe101/tbe101.c
+@@ -0,0 +1,204 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Copyright 2016 Freescale Semiconductor, Inc.
++ * Copyright 2019 NXP
++ */
++
++#include <command.h>
++#include <fdt_support.h>
++#include <hang.h>
++#include <i2c.h>
++#include <asm/cache.h>
++#include <init.h>
++#include <asm/global_data.h>
++#include <asm/io.h>
++#include <asm/arch/clock.h>
++#include <asm/arch/fsl_serdes.h>
++#ifdef CONFIG_FSL_LS_PPA
++#include <asm/arch/ppa.h>
++#endif
++#include <asm/arch/mmu.h>
++#include <asm/arch/soc.h>
++#include <hwconfig.h>
++#include <ahci.h>
++#include <mmc.h>
++#include <scsi.h>
++#include <fsl_esdhc.h>
++#include <env_internal.h>
++#include <stdlib.h>
++#include <fsl_mmdc.h>
++#include <netdev.h>
++
++
++#include <linux/delay.h>
++#include "gpio.h"
++#include "usb.h"
++#include "board_configuration_data.h"
++
++DECLARE_GLOBAL_DATA_PTR;
++
++/* Possible SPI (NOR) flashes used as rescue memory device */
++const char* supported_rescue_flashes[] = {"s25fs064s","sst26wf080b"};
++static int recovery_mode_enabled = 0;
++
++int checkboard(void)
++{
++#ifdef CONFIG_TARGET_TBE101
++	struct ccsr_gpio *pgpio = (void *)(CONFIG_SYS_GPIO2);
++	const void* bcd_dtc_blob;
++	int ret;
++
++	int m2_config = 0;
++	int serdes_cfg = get_serdes_protocol();
++
++	puts("Board: Trustbox Edge 101\n");
++
++	env_set_ulong("recoverymode", recovery_mode_enabled);
++	bcd_dtc_blob = get_boardinfo_rescue_flash();
++	if (bcd_dtc_blob != NULL) {
++		/* Board Configuration Data is intact, ready for parsing */
++		ret = add_mac_addressess_to_env(bcd_dtc_blob);
++		if (ret != 0) {
++			printf("Error adding BCD data to environment\n");
++		}
++	}
++
++	/* set QSPI chip select muxing to 0 */
++	setbits_be32(&pgpio->gpdir, QSPI_MUX_N_MASK);
++	clrbits_be32(&pgpio->gpdat, QSPI_MUX_N_MASK);
++
++	/* Check for an M.2 module */
++	clrbits_be32(&pgpio->gpdir, (M2_CFG0 | M2_CFG1 | M2_CFG2 | M2_CFG3));
++	m2_config = (in_be32(&pgpio->gpdat) & (M2_CFG0 | M2_CFG1 | M2_CFG2 | M2_CFG3));
++
++	switch(m2_config) {
++	case 0:
++		printf("M.2: SATA SSD module found\n");
++		if (serdes_cfg & 0x5)
++			printf("Warning: SERDES has not been configured in RCW for SATA!\n");
++		break;
++	case M2_CFG1:
++		printf("M.2: PCIe SSD module found\n");
++		if (serdes_cfg & 0x8)
++			printf("Warning: SERDES has not been configured in RCW for PCIe!\n");
++		break;
++	case (M2_CFG0 | M2_CFG1 | M2_CFG2 | M2_CFG3):
++		printf("M.2: No module detected\n");
++		break;
++	default:
++		printf("M.2: A module has been detected (TODO: support new module type)\n");
++		break;
++	}
++
++
++	/* Configure USB hub */
++	usb_hx3_hub_init();
++
++#else
++	puts("Board: unknown");
++#endif
++	return 0;
++}
++
++#ifdef CONFIG_TFABOOT
++int dram_init(void)
++{
++	gd->ram_size = tfa_get_dram_size();
++	if (!gd->ram_size)
++		gd->ram_size = CFG_SYS_SDRAM_SIZE;
++
++	return 0;
++}
++#else
++int dram_init(void)
++{
++#ifndef CONFIG_TFABOOT
++	static const struct fsl_mmdc_info mparam = {
++		0x05180000,	/* mdctl */
++		0x00030035,	/* mdpdc */
++		0x12554000,	/* mdotc */
++		0xbabf7954,	/* mdcfg0 */
++		0xdb328f64,	/* mdcfg1 */
++		0x01ff00db,	/* mdcfg2 */
++		0x00001680,	/* mdmisc */
++		0x0f3c8000,	/* mdref */
++		0x00002000,	/* mdrwd */
++		0x00bf1023,	/* mdor */
++		0x0000003f,	/* mdasp */
++		0x0000022a,	/* mpodtctrl */
++		0xa1390003,	/* mpzqhwctrl */
++	};
++
++	mmdc_init(&mparam);
++#endif
++
++	gd->ram_size = CFG_SYS_SDRAM_SIZE;
++#if !defined(CONFIG_SPL) || defined(CONFIG_SPL_BUILD)
++	/* This will break-before-make MMU for DDR */
++	update_early_mmu_table();
++#endif
++
++	return 0;
++}
++#endif
++
++
++int board_early_init_f(void)
++{
++	fsl_lsch2_early_init_f();
++
++	return 0;
++}
++
++int board_init(void)
++{
++	struct ccsr_cci400 *cci = (struct ccsr_cci400 *)(CONFIG_SYS_IMMR +
++					CONFIG_SYS_CCI400_OFFSET);
++	struct ccsr_gpio *pgpio = (void *)(CONFIG_SYS_GPIO2);
++	/*
++	 * Set CCI-400 control override register to enable barrier
++	 * transaction
++	 */
++	if (current_el() == 3)
++		out_le32(&cci->ctrl_ord, CCI400_CTRLORD_EN_BARRIER);
++
++#ifdef CONFIG_SYS_FSL_ERRATUM_A010315
++	erratum_a010315();
++#endif
++
++#ifdef CONFIG_ENV_IS_NOWHERE
++	gd->env_addr = (ulong)&default_environment[0];
++#endif
++	/* Detect and handle grapeboard rescue mode */
++	char *current_flash_name = strdup(get_qspi_flash_name());
++	for (int index = 0; index < sizeof(supported_rescue_flashes) / sizeof(supported_rescue_flashes[0]); index++) {
++		if(strcmp(current_flash_name, supported_rescue_flashes[index]) == 0) {
++			/* Revert chip select muxing to standard QSPI flash */
++			setbits_be32(&pgpio->gpdir, QSPI_MUX_N_MASK);
++			clrbits_be32(&pgpio->gpdat, QSPI_MUX_N_MASK);
++			printf("Please release the rescue mode button (S2) to enter the recovery mode\n");
++			recovery_mode_enabled = 1;
++
++			while(strcmp(get_qspi_flash_name(), supported_rescue_flashes[index]) == 0) {
++				udelay(500000);
++				puts("\033[1A"); /* Overwrite previous line */
++			}
++		}
++	}
++	free(current_flash_name);
++#ifdef CONFIG_FSL_LS_PPA
++	ppa_init();
++#endif
++
++	return 0;
++}
++
++int ft_board_setup(void *blob, struct bd_info *bd)
++{
++	arch_fixup_fdt(blob);
++
++	ft_cpu_setup(blob, bd);
++
++	return 0;
++}
++
+diff --git a/board/scalys/tbe101/usb.c b/board/scalys/tbe101/usb.c
+new file mode 100644
+index 0000000000..7d80e11200
+--- /dev/null
++++ b/board/scalys/tbe101/usb.c
+@@ -0,0 +1,139 @@
++/*
++ * Copyright 2019 Scalys B.V.
++ * opensource@scalys.com
++ *
++ * SPDX-License-Identifier:	GPL-2.0+
++ */
++
++#include <dm.h>
++#include <i2c.h>
++#include <asm/io.h>
++
++#define MIN(X,Y) ((X) < (Y) ? (X) : (Y))
++
++#define I2C_ADDRESS_USB_HUB		0x60
++#define MAX_I2C_ATTEMPTS		10
++
++#define HX3_SETTINGS_SIZE		192
++
++/* Cypress HX3 hub settings blob */
++const uint8_t hx3_settings[5 + HX3_SETTINGS_SIZE] = {
++	'C', 'Y', /* Cypress magic signature */
++	0x30, /* I2C speed : 100kHz */
++	0xd4, /* Image type: Only settings, no firmware */
++	HX3_SETTINGS_SIZE, /* payload size (192) */
++	0xb4, 0x04, /* VID */
++	0x04, 0x65, /* PID */
++	10, 50, /* DID */
++	0x00, /* Reserved */
++	0x07, /* DS4 has no SuperSpeed port */
++	0x32, /* bPwrOn2PwrGood : 100 ms */
++	0x7f, /* 4 Downstream ports : DS4 is non-removable (MCU) */
++	0x11, /* Ganged power switching */
++	0x20, /* suspend indicator disabled, power switch control is active high */
++	0x11, /* BC v1.2 and ghost charging enabled */
++	0xf0, /* cdp enabled */
++	0xf8, /* embedded hub, overcurrent input is active high */
++	0x00, /* reserved */
++	0x08, /* USB String descriptors enabled (0x08) / disabled (0x00) */
++	0x00, 0x00,
++	0x12, 0x00, 0x2c,
++	0x66, 0x66, /* USB3.0 TX driver de-emphasis */
++	0x69, 0x29, 0x29, 0x29, 0x29, /* TX amplitude */
++	0x00, /* Reserved */
++	0x06, 0x65, /* USB 2.0 PID */
++	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* Reserved */
++	0x04, 0x03, 0x09, 0x04, /* LangID = 0x0409 US English */
++	0x18, 0x03, /* Manufacturer string descriptor */
++	0x32, 0x00, 0x30, 0x00, 0x31, 0x00, 0x37, 0x00,
++	0x20, 0x00, 0x53, 0x00, 0x63, 0x00, 0x61, 0x00,
++	0x6c, 0x00, 0x79, 0x00, 0x73, 0x00,
++	0x2c, 0x03, /* Product string descriptor */
++	0x47, 0x00, 0x72, 0x00, 0x61, 0x00, 0x70, 0x00,
++	0x65, 0x00, 0x62, 0x00, 0x6f, 0x00, 0x61, 0x00,
++	0x72, 0x00, 0x64, 0x00, 0x20, 0x00, 0x43, 0x00,
++	0x59, 0x00, 0x2d, 0x00, 0x48, 0x00, 0x58, 0x00,
++	0x33, 0x00, 0x20, 0x00, 0x48, 0x00, 0x55, 0x00,
++	0x42, 0x00,
++	0x1a, 0x03, /* Serial string descriptor */
++	0x47, 0x00,	0x72, 0x00, 0x61, 0x00, 0x70, 0x00,
++	0x65, 0x00, 0x62, 0x00, 0x6f, 0x00, 0x61, 0x00,
++	0x72, 0x00, 0x64, 0x00, 0x20, 0x00, 0x31, 0x00,
++	0x39, 0x00, 0x41, 0x00,
++	0x00
++};
++
++
++int usb_hx3_hub_init(void) {
++	int length, index = 0, i2c_attempts = 0;
++	const int settings_size = sizeof(hx3_settings);
++	uint8_t *data = (uint8_t *)hx3_settings;
++	int ret;
++
++	/*
++	 * Configure USB hub slave
++	 *
++	 * The Hx3 starts in an i2c slave bootloader mode until sufficient and correct data is written to it over I2C.
++	 * If transferred data is incorrect then the device will hang until it has been reset.
++	 */
++	puts("USB: configuring hub....");
++
++#if defined(CONFIG_DM_I2C)
++	struct udevice *dev;
++	struct udevice *bus;
++
++	ret = uclass_get_device_by_seq(UCLASS_I2C, 0, &bus);
++	if (ret)
++		return ret;
++
++	ret = i2c_get_chip(bus, I2C_ADDRESS_USB_HUB, 2, &dev);
++	if (ret) {
++		printf("%s: Cannot find udev for a bus\n", __func__);
++		return -ENXIO;
++	}
++
++	while (index <= settings_size - 1){
++		length = MIN(64, (settings_size - index));
++
++		if ((ret = dm_i2c_write(dev, index, data, length))) {
++			if(i2c_attempts < 1)
++				printf("\nWARNING: I2C error %d during configuring USB hub slave. retrying...\n", ret);
++			if(++i2c_attempts >= MAX_I2C_ATTEMPTS){
++				printf("ERROR: Maximum USB hub configuration attempts reached. Exiting now\n");
++				return 1;
++			}
++			continue;
++		}
++		i2c_attempts = 0; /* reset error count */
++		index += length;
++		data += length;
++	}
++
++#else
++	while(index <= settings_size - 1){
++		length = MIN(64, (settings_size - index));
++
++		if(i2c_write(I2C_ADDRESS_USB_HUB, index, 2, data, length)) {
++			if(i2c_attempts < 1)
++				printf("\nWARNING: I2C error during configuring USB hub slave. retrying...\n");
++			if(++i2c_attempts >= MAX_I2C_ATTEMPTS){
++				printf("ERROR: Maximum USB hub configuration attempts reached. Exiting now\n");
++				return 1;
++			}
++			continue;
++		}
++		i2c_attempts = 0; /* reset error count */
++		index += length;
++		data += length;
++	}
++#endif
++
++	puts("Done!\n");
++	return 0;
++}
++
++int usb_hx3_hub_reset(void) {
++	/* USB hub cannot be reset in software without resetting the ls1012a */
++	return 1;
++}
++
+diff --git a/board/scalys/tbe101/usb.h b/board/scalys/tbe101/usb.h
+new file mode 100644
+index 0000000000..5fbd984db6
+--- /dev/null
++++ b/board/scalys/tbe101/usb.h
+@@ -0,0 +1,15 @@
++/*
++ * Copyright 2019 Scalys B.V.
++ * opensource@scalys.com
++ *
++ * SPDX-License-Identifier:	GPL-2.0+
++ */
++
++#ifndef USB_TRUSTBOX_H_
++#define USB_TRUSTBOX_H_
++
++int usb_hx3_hub_init(void);
++int usb_hx3_hub_reset(void);
++
++#endif /* USB_TRUSTBOX_H_ */
++
+diff --git a/configs/tbe101_tfa_defconfig b/configs/tbe101_tfa_defconfig
+new file mode 100644
+index 0000000000..cfed659df5
+--- /dev/null
++++ b/configs/tbe101_tfa_defconfig
+@@ -0,0 +1,77 @@
++CONFIG_ARM=y
++CONFIG_COUNTER_FREQUENCY=25000000
++CONFIG_TARGET_TBE101=y
++CONFIG_TFABOOT=y
++CONFIG_TEXT_BASE=0x82000000
++CONFIG_SYS_MALLOC_LEN=0x500000
++CONFIG_NR_DRAM_BANKS=2
++CONFIG_ENV_SIZE=0x2000
++CONFIG_ENV_OFFSET=0x500000
++CONFIG_ENV_SECT_SIZE=0x40000
++CONFIG_DM_GPIO=y
++CONFIG_DEFAULT_DEVICE_TREE="scalys-tbe101"
++CONFIG_QSPI_AHB_INIT=y
++CONFIG_ARMV8_SEC_FIRMWARE_SUPPORT=y
++CONFIG_SEC_FIRMWARE_ARMV8_PSCI=y
++CONFIG_PCI=y
++CONFIG_AHCI=y
++CONFIG_LAYERSCAPE_NS_ACCESS=y
++CONFIG_PCIE1=y
++CONFIG_SYS_MEMTEST_START=0x80000000
++CONFIG_SYS_MEMTEST_END=0x9fffffff
++# CONFIG_SYS_MALLOC_F is not set
++CONFIG_FIT_VERBOSE=y
++CONFIG_DISTRO_DEFAULTS=y
++CONFIG_BOOTDELAY=10
++CONFIG_OF_BOARD_SETUP=y
++CONFIG_OF_STDOUT_VIA_ALIAS=y
++CONFIG_USE_BOOTARGS=y
++CONFIG_BOOTARGS="console=ttyS0,115200 earlycon=uart8250,mmio,0x21c0500 lpj=250000"
++CONFIG_BOOTCOMMAND="run default_bootcmd; run distro_bootcmd"
++CONFIG_SYS_PBSIZE=532
++# CONFIG_DISPLAY_BOARDINFO is not set
++CONFIG_DISPLAY_BOARDINFO_LATE=y
++# CONFIG_BOOTM_PLAN9 is not set
++# CONFIG_BOOTM_RTEMS is not set
++# CONFIG_BOOTM_VXWORKS is not set
++CONFIG_CMD_GREPENV=y
++CONFIG_CMD_MEMINFO=y
++CONFIG_CMD_MEMTEST=y
++CONFIG_CMD_GPIO=y
++CONFIG_CMD_GPT=y
++CONFIG_CMD_I2C=y
++CONFIG_CMD_MMC=y
++CONFIG_CMD_PCI=y
++CONFIG_CMD_USB=y
++# CONFIG_CMD_SETEXPR is not set
++CONFIG_CMD_CACHE=y
++CONFIG_OF_CONTROL=y
++CONFIG_ENV_OVERWRITE=y
++CONFIG_ENV_IS_IN_SPI_FLASH=y
++CONFIG_SYS_RELOC_GD_ENV_ADDR=y
++CONFIG_NET_RANDOM_ETHADDR=y
++CONFIG_SATA=y
++CONFIG_SATA_CEVA=y
++CONFIG_DM_I2C=y
++CONFIG_I2C_SET_DEFAULT_BUS_NUM=y
++CONFIG_FSL_ESDHC=y
++CONFIG_MTD=y
++CONFIG_DM_SPI_FLASH=y
++# CONFIG_SPI_FLASH_BAR is not set
++CONFIG_SPI_FLASH_SPANSION=y
++CONFIG_SPI_FLASH_STMICRO=y
++CONFIG_SPI_FLASH_SST=y
++# CONFIG_SPI_FLASH_USE_4K_SECTORS is not set
++CONFIG_FSL_PFE=y
++CONFIG_E1000=y
++CONFIG_NVME_PCI=y
++CONFIG_PCIE_LAYERSCAPE_RC=y
++CONFIG_DM_RTC=y
++CONFIG_SYS_NS16550_SERIAL=y
++CONFIG_SPI=y
++CONFIG_DM_SPI=y
++CONFIG_FSL_DSPI=y
++CONFIG_FSL_QSPI=y
++CONFIG_USB=y
++CONFIG_USB_XHCI_HCD=y
++CONFIG_USB_XHCI_DWC3=y
+diff --git a/drivers/mtd/spi/spi-nor-ids.c b/drivers/mtd/spi/spi-nor-ids.c
+index 88709a52b3..ab9bc56770 100644
+--- a/drivers/mtd/spi/spi-nor-ids.c
++++ b/drivers/mtd/spi/spi-nor-ids.c
+@@ -317,6 +317,9 @@ const struct flash_info spi_nor_ids[] = {
+ 	{ INFO6("mt25qu512a",  0x20bb20, 0x104400, 64 * 1024, 1024,
+ 		 SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ | SPI_NOR_4B_OPCODES |
+ 		 USE_FSR) },
++	{ INFO6("mt25qu512a",  0x20bb20, 0x104000, 64 * 1024, 1024,
++		 SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ | SPI_NOR_4B_OPCODES |
++		 USE_FSR) },
+ 	{ INFO("n25q512a",    0x20bb20, 0, 64 * 1024, 1024, SECT_4K | USE_FSR | SPI_NOR_QUAD_READ) },
+ 	{ INFO6("mt25ql512a",  0x20ba20, 0x104400, 64 * 1024, 1024, SECT_4K | USE_FSR | SPI_NOR_QUAD_READ | SPI_NOR_4B_OPCODES) },
+ 	{ INFO("n25q512ax3",  0x20ba20, 0, 64 * 1024, 1024, SECT_4K | USE_FSR | SPI_NOR_QUAD_READ) },
+@@ -407,6 +410,8 @@ const struct flash_info spi_nor_ids[] = {
+ 	{ INFO("sst26wf016",  0xbf2651, 0, 64 * 1024,  32, SECT_4K | SPI_NOR_HAS_SST26LOCK) },
+ 	{ INFO("sst26wf032",  0xbf2622, 0, 64 * 1024,  64, SECT_4K | SPI_NOR_HAS_SST26LOCK) },
+ 	{ INFO("sst26wf064",  0xbf2643, 0, 64 * 1024, 128, SECT_4K | SPI_NOR_HAS_SST26LOCK) },
++	{ INFO("sst26wf080b", 0xbf2658, 0, 64 * 1024, 16, SECT_4K | SPI_NOR_HAS_SST26LOCK | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
++
+ #endif
+ #ifdef CONFIG_SPI_FLASH_STMICRO		/* STMICRO */
+ 	/* STMicroelectronics -- newer production may have feature updates */
+diff --git a/include/configs/tbe101.h b/include/configs/tbe101.h
+new file mode 100644
+index 0000000000..ded43c23f4
+--- /dev/null
++++ b/include/configs/tbe101.h
+@@ -0,0 +1,79 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++/*
++ * Copyright 2020-2021 NXP
++ * Copyright 2016 Freescale Semiconductor, Inc.
++ */
++
++#ifndef __TBE101_H__
++#define __TBE101_H__
++
++#include "ls1012a_common.h"
++
++/* DDR */
++#define CFG_SYS_SDRAM_SIZE		0x40000000
++
++#ifndef CONFIG_SPL_BUILD
++#undef BOOT_TARGET_DEVICES
++#define BOOT_TARGET_DEVICES(func) \
++	func(MMC, mmc, 0) \
++	func(USB, usb, 0)
++#endif
++
++#undef CFG_EXTRA_ENV_SETTINGS
++#define CFG_EXTRA_ENV_SETTINGS		\
++	"verify=no\0"				\
++	"initrd_high=0xffffffffffffffff\0"	\
++	"kernel_addr=0x01000000\0"		\
++	"kernelheader_addr=0x600000\0"		\
++	"scriptaddr=0x80000000\0"		\
++	"scripthdraddr=0x80080000\0"		\
++	"fdtheader_addr_r=0x80100000\0"		\
++	"kernelheader_addr_r=0x80200000\0"	\
++	"kernel_addr_r=0x96000000\0"		\
++	"fdt_addr_r=0x90000000\0"		\
++	"load_addr=0xa0000000\0"		\
++	"kernel_size=0x2800000\0"		\
++	"kernelheader_size=0x40000\0"		\
++	"bootm_size=0x10000000\0"		\
++	"console=ttyS0,115200\0"		\
++	BOOTENV					\
++	"boot_scripts=tbe101_boot.scr\0"	\
++	"boot_script_hdr=hdr_tbe101_bs.out\0"	\
++	"scan_dev_for_boot_part="		\
++	     "part list ${devtype} ${devnum} devplist; "	\
++	     "env exists devplist || setenv devplist 1; "	\
++	     "for distro_bootpart in ${devplist}; do "		\
++		  "if fstype ${devtype} "			\
++		      "${devnum}:${distro_bootpart} "		\
++		      "bootfstype; then "			\
++		      "run scan_dev_for_boot; "	\
++		  "fi; "			\
++	      "done\0"				\
++	"boot_a_script="				  \
++		"load ${devtype} ${devnum}:${distro_bootpart} "  \
++			"${scriptaddr} ${prefix}${script}; "    \
++		"env exists secureboot && load ${devtype} "     \
++			"${devnum}:${distro_bootpart} "		\
++			"${scripthdraddr} ${prefix}${boot_script_hdr}; " \
++			"env exists secureboot "	\
++			"&& esbc_validate ${scripthdraddr};"    \
++		"source ${scriptaddr}\0"	  \
++	"installer=load mmc 0:2 $load_addr "	\
++		   "/flex_installer_arm64.itb; "	\
++		   "bootm $load_addr#$board\0"	\
++	"default_bootcmd=echo Trying load from MMC..;"	\
++		"ext4load mmc 0:1 $kernel_addr_r /boot/Image;" \
++		"ext4load mmc 0:1 $fdt_addr_r /boot/dtb/freescale/tbe101.dtb;" \
++		"setenv bootargs \"${bootargs} root=/dev/mmcblk0p1 rootfstype=ext4 rw rootwait\";" \
++		"pfe stop;" \
++		"booti $kernel_addr_r - $fdt_addr_r\0"
++
++#ifdef CONFIG_TFABOOT
++#undef QSPI_NOR_BOOTCOMMAND
++#define QSPI_NOR_BOOTCOMMAND "run default_bootcmd; run distro_bootcmd; "\
++			     "env exists secureboot && esbc_halt;"
++#endif
++
++#include <asm/fsl_secure_boot.h>
++
++#endif /* __TBE101_H__ */
+-- 
+2.34.1
+
