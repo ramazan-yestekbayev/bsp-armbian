@@ -6,7 +6,7 @@ BOOTCONFIG_DEFAULT="tbe101_tfa_defconfig"
 [[ $SECUREBOOT = yes ]] && BOOTCONFIG="tbe101_tfa_secureboot_defconfig" || BOOTCONFIG=${BOOTCONFIG_DEFAULT}
 
 RCWPATH=( \
-    ["qspi"]="trustbox/N_SSNH_3308/rcw_1000_default.bin" \
+    ["qspi"]="tbe101/N_SSNH_3308/rcw_1000_default.bin" \
 )
 
 KERNEL_TARGET="current"
@@ -17,7 +17,7 @@ ATF_BOOT_MODE=qspi
 OPTEE_PLATFORM=ls-ls1012ardb
 
 RCWSOURCE='https://github.com/Scalys/rcw.git'
-RCWBRANCH='branch:trustbox-2012'
+RCWBRANCH='branch:trustbox-2412'
 
 # ---- Board QSPI Flash layout
 # Ofset      | Size     | Type
