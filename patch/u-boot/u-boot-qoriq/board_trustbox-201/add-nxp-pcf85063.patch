@@ -58,7 +58,7 @@ index 0000000000..07b54b615a
 + * reference pcf8563.c
 + */
 +
-+#include <common.h>
++//#include <common.h>
 +#include <command.h>
 +#include <dm.h>
 +#include <log.h>

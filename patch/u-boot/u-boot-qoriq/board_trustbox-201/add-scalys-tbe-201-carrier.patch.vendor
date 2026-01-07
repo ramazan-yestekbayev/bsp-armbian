@@ -1,19 +1,20 @@
-From cc88b6aeb6ef108478f9043e36abc79806a4ceb1 Mon Sep 17 00:00:00 2001
-From: ramazan-yestekbayev <ramazan.yestekbayev@sintecs.eu>
-Date: Wed, 7 Jan 2026 16:23:22 +0200
-Subject: [PATCH] Added RT Drivers and SystemReady Configuration
+From f769e28f2c58c9d54eacd779c89be98e17380eff Mon Sep 17 00:00:00 2001
+From: Siarhei Yasinski <siarhei.yasinski@sintecs.eu>
+Date: Wed, 13 Nov 2024 11:12:14 +0200
+Subject: [PATCH] Added TBE201 support
 
 ---
- arch/arm/Kconfig                  |  13 ++
- arch/arm/dts/tbe201.dts           | 216 +++++++++++++++++++++++++
- board/scalys/tbe201/Kconfig       |  23 +++
+ arch/arm/Kconfig                  |  13 +
+ arch/arm/cpu/armv8/Kconfig        |   1 +
+ arch/arm/dts/tbe201.dts           | 396 ++++++++++++++++++++++++++++++
+ board/scalys/tbe201/Kconfig       |  23 ++
  board/scalys/tbe201/Makefile      |   8 +
- board/scalys/tbe201/ddr.c         |  20 +++
- board/scalys/tbe201/tbe201.c      | 251 ++++++++++++++++++++++++++++++
- configs/tbe201_tfa_defconfig      | 206 ++++++++++++++++++++++++
- include/configs/tbe201.h          |  36 +++++
- include/configs/trustsom_common.h |  63 ++++++++
- 9 files changed, 836 insertions(+)
+ board/scalys/tbe201/ddr.c         |  20 ++
+ board/scalys/tbe201/tbe201.c      | 220 +++++++++++++++++
+ configs/tbe201_tfa_defconfig      | 104 ++++++++
+ include/configs/tbe201.h          |  36 +++
+ include/configs/trustsom_common.h |  63 +++++
+ 10 files changed, 884 insertions(+)
  create mode 100644 arch/arm/dts/tbe201.dts
  create mode 100644 board/scalys/tbe201/Kconfig
  create mode 100644 board/scalys/tbe201/Makefile
@@ -24,10 +25,10 @@ Subject: [PATCH] Added RT Drivers and SystemReady Configuration
  create mode 100644 include/configs/trustsom_common.h
 
 diff --git a/arch/arm/Kconfig b/arch/arm/Kconfig
-index 2a16a7e31c4..553f7b19d9c 100644
+index ba0359fed5..22f24a79cb 100644
 --- a/arch/arm/Kconfig
 +++ b/arch/arm/Kconfig
-@@ -2175,6 +2175,18 @@ config ARCH_GXP
+@@ -2135,6 +2135,18 @@ config ARCH_GXP
  	select OF_CONTROL
  	imply CMD_DM
  
@@ -46,7 +47,7 @@ index 2a16a7e31c4..553f7b19d9c 100644
  endchoice
  
  config SUPPORT_PASSING_ATAGS
-@@ -2440,6 +2452,7 @@ source "board/phytium/durian/Kconfig"
+@@ -2396,6 +2408,7 @@ source "board/phytium/durian/Kconfig"
  source "board/phytium/pomelo/Kconfig"
  source "board/phytium/pe2201/Kconfig"
  source "board/xen/xenguest_arm64/Kconfig"
@@ -54,19 +55,33 @@ index 2a16a7e31c4..553f7b19d9c 100644
  
  source "arch/arm/Kconfig.debug"
  
+diff --git a/arch/arm/cpu/armv8/Kconfig b/arch/arm/cpu/armv8/Kconfig
+index 199335cd60..c66cf2143e 100644
+--- a/arch/arm/cpu/armv8/Kconfig
++++ b/arch/arm/cpu/armv8/Kconfig
+@@ -123,6 +123,7 @@ config PSCI_RESET
+ 		   !TARGET_LS1012A2G5RDB && !TARGET_LS1012AQDS && \
+ 		   !TARGET_LS1012AFRWY && \
+ 		   !TARGET_LS1028ARDB && !TARGET_LS1028AQDS && \
++		   !TARGET_TBE201 && \
+ 		   !TARGET_LS1043ARDB && !TARGET_LS1043AQDS && \
+ 		   !TARGET_LS1046ARDB && !TARGET_LS1046AQDS && \
+ 		   !TARGET_LS1046AFRWY && \
 diff --git a/arch/arm/dts/tbe201.dts b/arch/arm/dts/tbe201.dts
 new file mode 100644
-index 00000000000..d3eb882da10
+index 0000000000..163a7e0e76
 --- /dev/null
 +++ b/arch/arm/dts/tbe201.dts
-@@ -0,0 +1,216 @@
+@@ -0,0 +1,396 @@
 +// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 +/*
-+ * Device Tree file for Scalys TrustBox-201 Board.
++ * Device Tree file for Scalys TrustSOM on Trustbox Edge 201 Carrier.
 + *
-+ * Copyright 2018-2021 NXP
++ * Copyright 2018-2019 NXP
++ * Copyright 2021-2022 Scalys
 + *
-+ * Harninder Rai <harninder.rai@nxp.com>
++ * opensource@scalys.com
++ *
 + */
 +
 +/dts-v1/;
@@ -75,26 +90,13 @@ index 00000000000..d3eb882da10
 +#include "fsl-ls1028a.dtsi"
 +
 +/ {
-+	model = "Scalys TrustROM on Trustbox Edge 201 Carrier";
++	model = "Scalys TrustSOM on Trustbox Edge 201 Carrier";
 +	compatible = "fsl,ls1028a";
 +
 +	aliases {
 +		crypto = &crypto;
 +		serial0 = &duart0;
 +		serial1 = &duart1;
-+		mmc0 = &esdhc;
-+		mmc1 = &esdhc1;
-+		rtc1 = &ftm_alarm1;
-+		spi0 = &fspi;
-+		ethernet0 = &enetc_port0;
-+		ethernet1 = &enetc_port2;
-+		ethernet2 = &mscc_felix_port0;
-+		ethernet3 = &mscc_felix_port1;
-+		ethernet4 = &mscc_felix_port2;
-+		ethernet5 = &mscc_felix_port3;
-+		ethernet6 = &mscc_felix_port4;
-+		ethernet7 = &mscc_felix_port5;
-+		ethernet8 = &enetc_port3;
 +	};
 +
 +	chosen {
@@ -103,31 +105,41 @@ index 00000000000..d3eb882da10
 +
 +	memory@80000000 {
 +		device_type = "memory";
-+		reg = <0x0 0x80000000 0x0 0x7be00000>,
-+         	<0x20 0x80000000 0x0 0x80000000>;
++		reg = <0x0 0x80000000 0x1 0x0000000>;
 +	};
 +
-+	sys_mclk: clock-mclk {
++	/* Fix incorrectly named node such that bootloader can find it */
++	/delete-node/ clock-sysclk;
++	sysclk: sysclk {
 +		compatible = "fixed-clock";
 +		#clock-cells = <0>;
-+		clock-frequency = <25000000>;
++		clock-frequency = <100000000>;
++		clock-output-names = "sysclk";
 +	};
 +
-+	reg_1p8v: regulator-1p8v {
-+		compatible = "regulator-fixed";
-+		regulator-name = "1P8V";
-+		regulator-min-microvolt = <1800000>;
-+		regulator-max-microvolt = <1800000>;
-+		regulator-always-on;
-+	};
++	leds {
++		compatible = "gpio-leds";
 +
-+	sb_3v3: regulator-sb3v3 {
-+		compatible = "regulator-fixed";
-+		regulator-name = "3v3_vbus";
-+		regulator-min-microvolt = <3300000>;
-+		regulator-max-microvolt = <3300000>;
-+		regulator-boot-on;
-+		regulator-always-on;
++		led0: redled  {
++			label = "redled";
++			color = <LED_COLOR_ID_RED>;
++			gpio = <&gpio3 5 GPIO_ACTIVE_HIGH>; /* GPIO3_5 */
++			default-state = "off";
++		};
++
++		led1: greenled  {
++			label = "greenled";
++			color = <LED_COLOR_ID_GREEN>;
++			gpio = <&gpio3 3 GPIO_ACTIVE_HIGH>; /* GPIO3_3 */
++			default-state = "on";
++		};
++
++		 led2: blueled  {
++			label = "blueled";
++			color = <LED_COLOR_ID_BLUE>;
++			gpio = <&gpio3 2 GPIO_ACTIVE_HIGH>; /* GPIO3_2 */
++			default-state = "off";
++		};
 +	};
 +
 +	sfp0: sfp {
@@ -141,39 +153,115 @@ index 00000000000..d3eb882da10
 +	};
 +};
 +
-+&can0 {
-+	status = "okay";
-+	can-transceiver {
-+		max-bitrate = <5000000>;
++&gpio1 {
++	gpio-line-names = "", "", "", "", "", "", "UART_2_SIN", "UART_2_SOUT",
++		"", "", "UART_1_SIN", "UART_1_SOUT", "", "", "", "", "", "", "", "",
++		"", "", "USB_2_DRVVBUS", "USB_2_PWRFAULT", "", "", "", "", "", "",
++		"SDHC_1_WP", "SDHC_1_CD";
++
++	SDHC_1_WP {
++		gpio-hog;
++		gpios = <30 0>;
++		output-low;
++		line-name = "SDHC_1_WP";
++	};
++
++	gpio1_default_output_low {
++		gpio-hog;
++		gpios = <6 0>, <7 0>, <22 0>, <23 0>, <26 0>, <27 0>;
++		output-low;
++		line-name = "gpio1_default_output_low";
 +	};
 +};
 +
-+&can1 {
-+	status = "okay";
-+	can-transceiver {
-+		max-bitrate = <5000000>;
++&gpio2 {
++	gpio-line-names = "", "", "", "", "", "", "ASLEEP", "CLKOUT", "", "", "",
++		"", "", "", "", "", "", "", "", "", "M2_E_W_DISABLE_1_N", "EXPANSION PIN4",
++		"EXPANSION PIN6", "M2_B_W_DISABLE_1_N", "M2_B_POWER_OFF_N", "EXPANSION PIN8",
++		"M2_B_CONFIG_0", "ALERT_5V_SOM_N", "M2_B_CONFIG_2", "ALERT_12V_N",
++		"M2_B_CONFIG_3", "M2_B_CONFIG_1";
++
++	gpio2_default_output_low {
++		gpio-hog;
++		gpios = <7 0>;
++		output-low;
++		line-name = "gpio2_default_output_low";
++	};
++
++	gpio2_default_output_high {
++		gpio-hog;
++		gpios = <20 0>, <23 0>, <24 0>;
++		output-high;
++		line-name = "gpio2_default_output_high";
 +	};
 +};
 +
-+&duart0 { status = "okay"; };
-+&duart1 { status = "okay"; };
++&gpio3 {
++	gpio-line-names = "SFP_TX_DISABLE", "SFP_MOD_ABS", "MDINT_N", "DP_PWR_EN",
++		"EXPANSION PIN2", "DP_PWR_FAULT_N", "SFP_TX_FAULT", "SFP_LOS", "RESET_TPM_N",
++		"PROG_SFP_EN", "INT_TPM_N", "NT_RTC_N", "ALERT_TEMP", "", "", "", "",
++		"USB_PWRFAULT", "USB_DRVVBUS", "", "", "", "", "", "", "", "", "", "", "", "", "";
 +
-+&enetc_mdio_pf3 {
-+	qsgmii_phy0: ethernet-phy@4 { reg = <0x4>; };
-+	qsgmii_phy1: ethernet-phy@5 { reg = <0x5>; };
-+	qsgmii_phy2: ethernet-phy@6 { reg = <0x6>; };
-+	qsgmii_phy3: ethernet-phy@7 { reg = <0x7>; };
++	RESET_TPM_N {
++		gpio-hog;
++		gpios = <8 0>;
++		output-high;
++		line-name = "RESET_TPM_N";
++	};
++
++	PROG_SFP_EN {
++		gpio-hog;
++		gpios = <9 0>;
++		output-low;
++		line-name = "PROG_SFP_EN";
++	};
++
++	INT_TPM_N {
++		gpio-hog;
++		gpios = <10 0>;
++		input;
++		line-name = "INT_TPM_N";
++	};
++
++	INT_RTC_N {
++		gpio-hog;
++		gpios = <11 0>;
++		input;
++		line-name = "INT_RTC_N";
++	};
++
++	ALERT_TEMP {
++		gpio-hog;
++		gpios = <12 0>;
++		input;
++		line-name = "ALERT_TEMP";
++	};
++
++	gpio3_default_output_low {
++		gpio-hog;
++		gpios = <4 0>;
++		output-low;
++		line-name = "gpio3_default_output_low";
++	};
 +};
 +
-+&enetc_port0 {
-+	phy-connection-type = "sgmii";
-+	sfp = <&sfp0>;
-+	managed = "in-band-status";
++&dspi2 {
++	spi-num-chipselects = <1>;
 +	status = "okay";
-+};
 +
-+&enetc_port2 { status = "okay"; };
-+&enetc_port3 { status = "okay"; };
++	slb9670: slb9670@0 {
++		compatible = "infineon,slb9670";
++		reg = <0>; /* CE0 */
++		#address-cells = <1>;
++		#size-cells = <0>;
++		spi-max-frequency = <10000000>;
++		status = "okay";
++		/* Interrupt disabled for now */
++		/*interrupt-parent = <&gpio3>;
++		interrupts = <10 IRQ_TYPE_EDGE_FALLING>;
++		interrupt-names = "INT_TPM_N";*/
++	};
++};
 +
 +&esdhc {
 +	sd-uhs-sdr104;
@@ -181,32 +269,30 @@ index 00000000000..d3eb882da10
 +	sd-uhs-sdr25;
 +	sd-uhs-sdr12;
 +	status = "okay";
++	cd-gpios = <&gpio1 31 GPIO_ACTIVE_LOW>;
++	disable-wp;
 +};
 +
 +&esdhc1 {
++	voltage-ranges = <1800 1800>;
 +	mmc-hs200-1_8v;
-+	mmc-hs400-1_8v;
++	/*mmc-hs400-1_8v;
++	max-frequency = <150000000>;*/
 +	bus-width = <8>;
++	non-removable;
++};
++
++&usb0 {
 +	status = "okay";
 +};
 +
-+&fspi {
++&usb1 {
 +	status = "okay";
-+	mt35xu02g0: flash@0 {
-+		compatible = "jedec,spi-nor";
-+		reg = <0>;
-+		#address-cells = <1>;
-+		#size-cells = <1>;
-+		spi-max-frequency = <50000000>;
-+		spi-rx-bus-width = <8>;
-+		spi-tx-bus-width = <1>;
-+	};
 +};
-+
-+&ftm_alarm1 { status = "okay"; };
 +
 +&i2c0 {
 +	status = "okay";
++
 +	rtc@51 {
 +		compatible = "nxp,pcf85063tp";
 +		reg = <0x51>;
@@ -214,6 +300,7 @@ index 00000000000..d3eb882da10
 +		interrupts = <11 IRQ_TYPE_EDGE_FALLING>;
 +		interrupt-names = "INT_RTC_N";
 +	};
++
 +	tmp@4c {
 +		compatible = "ti,tmp451";
 +		reg = <0x4c>;
@@ -228,7 +315,102 @@ index 00000000000..d3eb882da10
 +	status = "okay";
 +};
 +
-+&mscc_felix { status = "okay"; };
++&i2c4 {
++	clock-frequency = <100000>;
++	status = "okay";
++
++	usb_hub@60 {
++		reg = <0x60>;
++		compatible = "cypress,cyusb3304";
++		configuration = [ 	43 59 /* 'C' 'Y' Cypress magic signature */
++					30 /* I2C speed : 100kHz */
++					D4 /* Image type: Only settings, no firmware */
++					C0 /* payload size (192) */
++					B4 04 /* VID */
++					04 65 /* PID */
++					0A 32 /* DID */
++					00 /* Reserved */
++					03 /* DS4 and DS3 have no SuperSpeed port */
++					32 /* bPwrOn2PwrGood : 100 ms */
++					FF /* 4 Downstream ports : all removable (MCU) */
++					11 /* Ganged power switching */
++					A0 /* suspend indicator disabled, power switch control is active high */
++					11 /* BC v1.2 and ghost charging enabled */
++					F0 /* cdp enabled */
++					E8 /* embedded hub, overcurrent input is active low high */
++					00 /* reserved */
++					08 /* USB String descriptors enabled (0x08) / disabled (0x00) */
++					00 00
++					12 00 2C
++					66 66 /* USB3.0 TX driver de-emphasis */
++					69 29 29 29 29 /* TX amplitude */
++					00 /* Reserved */
++					06 65 /* USB 2.0 PID */
++					00 00 00 00 00 00 00 00 /* Reserved */
++					04 03 09 04 /* LangID = 0x0409 US English */
++					36 03 /* Manufacturer string descriptor */
++					32 00 30 00 31 00 34 00 20 00 43 00 79 00 70 00 72 00 65 00 73 00 73 00 20 00
++					53 00 65 00 6D 00 69 00 63 00 6F 00 6E 00 64 00 75 00 63 00 74 00 6F 00 72 00
++					16 03 /* Product string descriptor */
++					43 00 59 00 2D 00 48 00 58 00 33 00 20 00 48 00 55 00 42 00
++					14 03 /* Serial string descriptor */
++					54 00 42 00 45 00 32 00 30 00 31 00 ];
++	};
++};
++
++&can1 {
++	status = "disabled";
++};
++
++&fspi {
++	status = "disabled";
++};
++
++&duart0 {
++	status = "okay";
++};
++
++&duart1 {
++	status = "disabled";
++};
++
++&enetc_mdio_pf3 {
++	/* VSC8514 QSGMII quad PHY */
++	qsgmii_phy0: ethernet-phy@4 {
++		reg = <0x4>;
++	};
++
++	qsgmii_phy1: ethernet-phy@5 {
++		reg = <0x5>;
++	};
++
++	qsgmii_phy2: ethernet-phy@6 {
++		reg = <0x6>;
++	};
++
++	qsgmii_phy3: ethernet-phy@7 {
++		reg = <0x7>;
++	};
++};
++
++&enetc_port0 {
++	phy-connection-type = "sgmii";
++	sfp = <&sfp0>;
++	managed = "in-band-status";
++	status = "okay";
++};
++
++&enetc_port2 {
++	status = "okay";
++};
++
++&enetc_port3 {
++	status = "okay";
++};
++
++&mscc_felix {
++	status = "okay";
++};
 +
 +&mscc_felix_port0 {
 +	label = "swp0";
@@ -262,23 +444,34 @@ index 00000000000..d3eb882da10
 +	status = "okay";
 +};
 +
-+&mscc_felix_port4 { status = "okay"; };
-+&mscc_felix_port5 { status = "okay"; };
-+
-+&optee { status = "okay"; };
-+&pwm0 { status = "okay"; };
-+&sai4 { status = "okay"; };
-+&sata { status = "okay"; };
-+
-+&usb0 {
-+	dr_mode = "host";
++&mscc_felix_port4 {
++	ethernet = <&enetc_port2>;
 +	status = "okay";
 +};
 +
-+&usb1 { status = "okay"; };
++&mscc_felix_port5 {
++	ethernet = <&enetc_port3>;
++	status = "okay";
++};
++
++&malidp0 {
++	status = "disabled";
++};
++
++&sata {
++	status = "okay";
++};
++
++&optee {
++	status = "okay";
++};
++
++&pcie2 {
++	status = "okay";
++};
 diff --git a/board/scalys/tbe201/Kconfig b/board/scalys/tbe201/Kconfig
 new file mode 100644
-index 00000000000..1f6f4b0a5cb
+index 0000000000..1f6f4b0a5c
 --- /dev/null
 +++ b/board/scalys/tbe201/Kconfig
 @@ -0,0 +1,23 @@
@@ -307,7 +500,7 @@ index 00000000000..1f6f4b0a5cb
 +endif
 diff --git a/board/scalys/tbe201/Makefile b/board/scalys/tbe201/Makefile
 new file mode 100644
-index 00000000000..010edaa0f15
+index 0000000000..010edaa0f1
 --- /dev/null
 +++ b/board/scalys/tbe201/Makefile
 @@ -0,0 +1,8 @@
@@ -321,7 +514,7 @@ index 00000000000..010edaa0f15
 +obj-y += ddr.o
 diff --git a/board/scalys/tbe201/ddr.c b/board/scalys/tbe201/ddr.c
 new file mode 100644
-index 00000000000..c406f2436d1
+index 0000000000..c406f2436d
 --- /dev/null
 +++ b/board/scalys/tbe201/ddr.c
 @@ -0,0 +1,20 @@
@@ -347,10 +540,10 @@ index 00000000000..c406f2436d1
 +}
 diff --git a/board/scalys/tbe201/tbe201.c b/board/scalys/tbe201/tbe201.c
 new file mode 100644
-index 00000000000..d48086745b1
+index 0000000000..5c999e830d
 --- /dev/null
 +++ b/board/scalys/tbe201/tbe201.c
-@@ -0,0 +1,251 @@
+@@ -0,0 +1,220 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright 2019, 2021 NXP
@@ -382,8 +575,6 @@ index 00000000000..d48086745b1
 +#include <miiphy.h>
 +#include "../drivers/net/fsl_enetc.h"
 +#include "hx3_hub.h"
-+// #include <efi_loader.h>
-+// #include <efi.h>
 +
 +DECLARE_GLOBAL_DATA_PTR;
 +
@@ -573,55 +764,25 @@ index 00000000000..d48086745b1
 +	return 0;
 +}
 +#endif
-+
-+// /* --- SystemReady / EFI Capsule Update Info --- */
-+// #if defined(CONFIG_EFI_CAPSULE_FIRMWARE_MANAGEMENT)
-+
-+// #include <efi_loader.h>
-+// #include <efi.h>
-+
-+// /* UUID: e2bb3036-7c98-4b77-a9a3-5c78203c6218 */
-+// #define TBE201_FIRMWARE_GUID \
-+// 	EFI_GUID(0xe2bb3036, 0x7c98, 0x4b77, \
-+// 		 0xa9, 0xa3, 0x5c, 0x78, 0x20, 0x3c, 0x62, 0x18)
-+
-+// /* 1. Define the array of images separately */
-+// struct efi_fw_image fw_images[] = {
-+// 	{
-+// 		.image_type_id = TBE201_FIRMWARE_GUID,
-+// 		.fw_name = u"TBE201-UBOOT",
-+// 		.image_index = 1,
-+// 	},
-+// };
-+
-+// /* 2. Define the 'update_info' struct that points to the array */
-+// struct efi_capsule_update_info update_info = {
-+// 	.dfu_string = "mmc 0=u-boot.bin fat 0 1", /* Example DFU string, adjust if needed */
-+// 	.num_images = ARRAY_SIZE(fw_images),
-+// 	.images = fw_images,
-+// };
-+
-+// #endif
 diff --git a/configs/tbe201_tfa_defconfig b/configs/tbe201_tfa_defconfig
 new file mode 100644
-index 00000000000..ad28b29eb63
+index 0000000000..2bf781b45d
 --- /dev/null
 +++ b/configs/tbe201_tfa_defconfig
-@@ -0,0 +1,206 @@
+@@ -0,0 +1,104 @@
 +CONFIG_ARM=y
 +CONFIG_SKIP_LOWLEVEL_INIT=y
 +CONFIG_COUNTER_FREQUENCY=25000000
 +CONFIG_GIC_V3_ITS=y
 +CONFIG_TARGET_TBE201=y
 +CONFIG_TFABOOT=y
-+CONFIG_SYS_MALLOC_LEN=0x10000000
++CONFIG_SYS_MALLOC_LEN=0x202000
 +CONFIG_SYS_MALLOC_F_LEN=0x6000
 +CONFIG_NR_DRAM_BANKS=2
 +CONFIG_ENV_SIZE=0x2000
 +CONFIG_ENV_OFFSET=0x500000
 +CONFIG_ENV_SECT_SIZE=0x20000
 +CONFIG_DM_GPIO=y
-+CONFIG_CMD_GPT=y
 +CONFIG_DEFAULT_DEVICE_TREE="tbe201"
 +CONFIG_FSPI_AHB_EN_4BYTE=y
 +CONFIG_OF_LIBFDT_OVERLAY=y
@@ -648,6 +809,7 @@ index 00000000000..ad28b29eb63
 +CONFIG_CMD_MEMTEST=y
 +CONFIG_CMD_DM=y
 +CONFIG_CMD_GPIO=y
++CONFIG_CMD_GPT=y
 +CONFIG_CMD_I2C=y
 +CONFIG_CMD_MMC=y
 +CONFIG_CMD_PCI=y
@@ -712,111 +874,9 @@ index 00000000000..ad28b29eb63
 +CONFIG_EFI_LOADER_BOUNCE_BUFFER=y
 +CONFIG_TEXT_BASE=0x82000000
 +CONFIG_CUSTOM_SYS_INIT_SP_ADDR=0x82000000
-+CONFIG_FSL_ESDHC_SUPPORT_ADMA2=y
-+
-+# --- SystemReady IR Additions ---
-+# CONFIG_SYSRESET is not set
-+# CONFIG_SYSRESET_CMD_RESET is not set
-+# CONFIG_PSCI_RESET is not set
-+# CONFIG_SYSRESET_PSCI is not set
-+
-+# --- UEFI ABI support ---
-+# Core UEFI features
-+# CONFIG_BOOTM_EFI is not set
-+# CONFIG_CMD_BOOTEFI is not set
-+# CONFIG_CMD_NVEDIT_EFI is not set
-+# CONFIG_HEXDUMP is not set
-+# CONFIG_EFI_PARTITION is not set
-+# CONFIG_EFI_LOADER is not set
-+# CONFIG_EFI_DEVICE_PATH_TO_TEXT is not set
-+# CONFIG_EFI_UNICODE_COLLATION_PROTOCOL2 is not set
-+# CONFIG_EFI_UNICODE_CAPITALIZATION is not set
-+# CONFIG_EFI_VARIABLE_FILE_STORE is not set
-+
-+# Enable RTC
-+# CONFIG_EFI_GET_TIME is not set
-+# CONFIG_EFI_SET_TIME is not set
-+# CONFIG_RTC_PCF85063 is not set
-+
-+# Capsule Updates (Firmware Management)
-+# CONFIG_CMD_DFU is not set
-+# CONFIG_FLASH_CFI_MTD is not set
-+# CONFIG_EFI_CAPSULE_FIRMWARE_FIT is not set
-+# CONFIG_EFI_CAPSULE_FIRMWARE_MANAGEMENT is not set
-+# CONFIG_EFI_CAPSULE_FIRMWARE is not set
-+# CONFIG_EFI_CAPSULE_FIRMWARE_RAW is not set
-+
-+# Partitions and filesystems support
-+# CONFIG_FAT_WRITE is not set
-+# CONFIG_FS_FAT is not set
-+# CONFIG_CMD_PART is not set
-+# CONFIG_PARTITIONS is not set
-+# CONFIG_DOS_PARTITION is not set
-+# CONFIG_ISO_PARTITION is not set
-+# CONFIG_PARTITION_UUIDS is not set
-+
-+# --- DFU Common configurations ---
-+# Enable DFU Mode
-+# CONFIG_FIT is not set
-+# CONFIG_OF_LIBFDT is not set
-+# CONFIG_DFU is not set
-+# CONFIG_CMD_DFU is not set
-+
-+# DFU Backend for SD Card/eMMC
-+# CONFIG_DFU_MMC is not set
-+# CONFIG_DFU_SCSI is not set
-+
-+# DFU transport options
-+# CONFIG_DFU_OVER_TFTP is not set
-+# CONFIG_DFU_OVER_USB is not set
-+
-+# Support signed capsule file authentication
-+# CONFIG_EFI_CAPSULE_AUTHENTICATE is not set
-+# CONFIG_EFI_HAVE_CAPSULE_SUPPORT is not set
-+# CONFIG_EFI_RUNTIME_UPDATE_CAPSULE is not set
-+# CONFIG_EFI_CAPSULE_ON_DISK is not set
-+# CONFIG_EFI_SECURE_BOOT is not set
-+# CONFIG_EFI_SIGNATURE_SUPPORT is not set
-+# CONFIG_RSA is not set
-+# CONFIG_RSA_VERIFY is not set
-+# CONFIG_RSA_VERIFY_WITH_PKEY is not set
-+# CONFIG_IMAGE_SIGN_INFO is not set
-+# CONFIG_RSA_SOFTWARE_EXP is not set
-+# CONFIG_ASYMMETRIC_KEY_TYPE is not set
-+# CONFIG_ASYMMETRIC_PUBLIC_KEY_SUBTYPE is not set
-+# CONFIG_RSA_PUBLIC_KEY_PARSER is not set
-+# CONFIG_X509_CERTIFICATE_PARSER is not set
-+# CONFIG_PKCS7_MESSAGE_PARSER is not set
-+# CONFIG_PKCS7_VERIFY is not set
-+# CONFIG_HASH is not set
-+# CONFIG_SHA1 is not set
-+# CONFIG_SHA256 is not set
-+# CONFIG_SHA512 is not set
-+# CONFIG_SHA384 is not set
-+# CONFIG_MD5 is not set
-+# CONFIG_CRC32 is not set
-+
-+# Network Protocols for HTTP Boot
-+# CONFIG_IPV6 is not set
-+# CONFIG_PROT_TCP is not set
-+# CONFIG_PROT_UDP is not set
-+# CONFIG_CMD_DNS is not set
-+# CONFIG_CMD_WGET is not set
-+
-+# EFI Network Features
-+# CONFIG_EFI_HTTP_BOOT is not set
-+# CONFIG_EFI_IP4_CONFIG2_PROTOCOL is not set
-+
-+# Decompression Protocols (Standard U-Boot Support)
-+# CONFIG_LZMA is not set
-+# CONFIG_GZIP is not set
-+# CONFIG_LZO is not set
-+
-+# CONFIG_EFI_CAPSULE_CRT_FILE is not set
-+# CONFIG_EFI_CAPSULE_PUBLIC_KEY is not set
 diff --git a/include/configs/tbe201.h b/include/configs/tbe201.h
 new file mode 100644
-index 00000000000..9ac80b71494
+index 0000000000..9ac80b7149
 --- /dev/null
 +++ b/include/configs/tbe201.h
 @@ -0,0 +1,36 @@
@@ -858,7 +918,7 @@ index 00000000000..9ac80b71494
 +#endif /* __TRUSTBOX_201_RDB_H */
 diff --git a/include/configs/trustsom_common.h b/include/configs/trustsom_common.h
 new file mode 100644
-index 00000000000..07e47e4f2b8
+index 0000000000..07e47e4f2b
 --- /dev/null
 +++ b/include/configs/trustsom_common.h
 @@ -0,0 +1,63 @@
@@ -926,5 +986,5 @@ index 00000000000..07e47e4f2b8
 +
 +#endif /* __TRUSTSOM_COMMON_H */
 -- 
-2.43.0
+2.34.1
 
