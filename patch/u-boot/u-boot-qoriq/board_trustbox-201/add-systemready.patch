@@ -1,29 +1,25 @@
-From 1705a0afe35f3367ba10183d86434e0405775aec Mon Sep 17 00:00:00 2001
+From 6ecbb82684bc56177256a72ad4caaa82a9415def Mon Sep 17 00:00:00 2001
 From: ramazan-yestekbayev <ramazan.yestekbayev@sintecs.eu>
-Date: Mon, 30 Mar 2026 16:06:28 +0300
-Subject: [PATCH] Added RT Drivers and SystemReady Configuration
+Date: Mon, 30 Mar 2026 15:49:51 +0300
+Subject: [PATCH] Added SystemReady Devicetree Band support
 
 ---
- arch/arm/Kconfig                  |  13 +
- arch/arm/dts/tbe201.dts           | 406 ++++++++++++++++++++++++++++++
- board/scalys/tbe201/Kconfig       |  23 ++
- board/scalys/tbe201/Makefile      |   8 +
- board/scalys/tbe201/ddr.c         |  20 ++
- board/scalys/tbe201/tbe201.c      | 260 +++++++++++++++++++
- configs/tbe201_tfa_defconfig      | 216 ++++++++++++++++
- include/configs/tbe201.h          |  36 +++
- include/configs/trustsom_common.h |  63 +++++
- lib/efi_loader/efi_capsule.c      |  49 +++-
- lib/efi_loader/efi_runtime.c      |  15 +-
- 11 files changed, 1102 insertions(+), 7 deletions(-)
+ arch/arm/Kconfig             |  13 ++
+ arch/arm/dts/tbe201.dts      | 406 +++++++++++++++++++++++++++++++++++
+ board/scalys/tbe201/Kconfig  |  23 ++
+ board/scalys/tbe201/Makefile |   8 +
+ board/scalys/tbe201/ddr.c    |  20 ++
+ board/scalys/tbe201/tbe201.c | 260 ++++++++++++++++++++++
+ configs/tbe201_tfa_defconfig | 216 +++++++++++++++++++
+ lib/efi_loader/efi_capsule.c |  49 ++++-
+ lib/efi_loader/efi_runtime.c |  15 +-
+ 9 files changed, 1003 insertions(+), 7 deletions(-)
  create mode 100644 arch/arm/dts/tbe201.dts
  create mode 100644 board/scalys/tbe201/Kconfig
  create mode 100644 board/scalys/tbe201/Makefile
  create mode 100644 board/scalys/tbe201/ddr.c
  create mode 100644 board/scalys/tbe201/tbe201.c
  create mode 100644 configs/tbe201_tfa_defconfig
- create mode 100644 include/configs/tbe201.h
- create mode 100644 include/configs/trustsom_common.h
 
 diff --git a/arch/arm/Kconfig b/arch/arm/Kconfig
 index 2a16a7e31c4..553f7b19d9c 100644
@@ -1025,117 +1021,6 @@ index 00000000000..92c0c2ecb45
 +CONFIG_SUPPORT_EMMC_RPMB=y
 +CONFIG_CMD_OPTEE_RPMB=y
 +CONFIG_EFI_MM_COMM_TEE=y
-diff --git a/include/configs/tbe201.h b/include/configs/tbe201.h
-new file mode 100644
-index 00000000000..9ac80b71494
---- /dev/null
-+++ b/include/configs/tbe201.h
-@@ -0,0 +1,36 @@
-+/* SPDX-License-Identifier: GPL-2.0+ */
-+/*
-+ * Copyright 2019, 2021 NXP
-+ */
-+
-+#ifndef __TRUSTBOX_201_RDB_H
-+#define __TRUSTBOX_201_RDB_H
-+
-+#include "trustsom_common.h"
-+
-+#define COUNTER_FREQUENCY_REAL		(get_board_sys_clk() / 4)
-+
-+#define CONFIG_SYS_RTC_BUS_NUM         0
-+
-+/* Store environment at top of flash */
-+#undef CONFIG_ENV_SIZE
-+#define CONFIG_ENV_SIZE			0x4000
-+
-+#undef CFG_EXTRA_ENV_SETTINGS
-+#define CFG_EXTRA_ENV_SETTINGS		\
-+	"kernel_addr_r=0x96000000\0"	\
-+	"fdt_addr_r=0x90000000\0"	\
-+	BOOTENV				\
-+	"sd_bootcmd=echo Trying load from MMC..;"  \
-+		"ext4load mmc 0:1 $kernel_addr_r /boot/Image;" \
-+		"ext4load mmc 0:1 $fdt_addr_r /boot/dtb/freescale/tbe201.dtb;" \
-+		"setenv bootargs \"${bootargs} root=/dev/mmcblk0p1 rootfstype=ext4 rw rootwait\";" \
-+		"booti $kernel_addr_r - $fdt_addr_r\0"
-+
-+/* SATA */
-+#define SCSI_VEND_ID 0x1b4b
-+#define SCSI_DEV_ID  0x9170
-+#define CONFIG_SCSI_DEV_LIST {SCSI_VEND_ID, SCSI_DEV_ID}
-+#define CONFIG_SYS_SATA1                        AHCI_BASE_ADDR1
-+
-+#endif /* __TRUSTBOX_201_RDB_H */
-diff --git a/include/configs/trustsom_common.h b/include/configs/trustsom_common.h
-new file mode 100644
-index 00000000000..07e47e4f2b8
---- /dev/null
-+++ b/include/configs/trustsom_common.h
-@@ -0,0 +1,63 @@
-+/* SPDX-License-Identifier: GPL-2.0+ */
-+/*
-+ * Copyright 2024 Scalys
-+ */
-+
-+#ifndef __TRUSTSOM_COMMON_H
-+#define __TRUSTSOM_COMMON_H
-+
-+#include <asm/arch/stream_id_lsch3.h>
-+#include <asm/arch/config.h>
-+#include <asm/arch/soc.h>
-+
-+/* Link Definitions */
-+
-+#define CFG_SYS_DDR_SDRAM_BASE	0x80000000UL
-+#define CFG_SYS_FSL_DDR_SDRAM_BASE_PHY	0
-+#define CFG_SYS_SDRAM_BASE		CFG_SYS_DDR_SDRAM_BASE
-+#define CFG_SYS_DDR_BLOCK2_BASE	0x2080000000ULL
-+
-+/*
-+ * SMP Definitinos
-+ */
-+#define CPU_RELEASE_ADDR		secondary_boot_addr
-+
-+/* GPIO */
-+
-+/* I2C */
-+
-+/* Serial Port */
-+#define CFG_SYS_NS16550_CLK          (get_bus_freq(0) / 2)
-+
-+/* Miscellaneous configurable options */
-+
-+/* Physical Memory Map */
-+
-+#define HWCONFIG_BUFFER_SIZE		128
-+
-+#define BOOT_TARGET_DEVICES(func) \
-+	func(MMC, mmc, 0) \
-+	func(MMC, mmc, 1)
-+#include <config_distro_bootcmd.h>
-+
-+#define XSPI_NOR_BOOTCOMMAND	\
-+	"run distro_bootcmd; run xspi_bootcmd; " \
-+	"env exists secureboot && esbc_halt;;"
-+#define SD_BOOTCOMMAND	\
-+	"run sd_bootcmd; " \
-+	"env exists secureboot && esbc_halt;"
-+#define SD2_BOOTCOMMAND	\
-+	"run distro_bootcmd;run emmc_bootcmd; " \
-+	"env exists secureboot && esbc_halt;"
-+
-+#define OCRAM_NONSECURE_SIZE		0x00010000
-+#define CFG_SYS_FSL_QSPI_BASE	0x20000000
-+
-+/* DisplayPort */
-+#define DP_PWD_EN_DEFAULT_MASK          0x8
-+
-+#ifdef CONFIG_NXP_ESBC
-+#include <asm/fsl_secure_boot.h>
-+#endif
-+
-+#endif /* __TRUSTSOM_COMMON_H */
 diff --git a/lib/efi_loader/efi_capsule.c b/lib/efi_loader/efi_capsule.c
 index f8a4a7c6ef4..4e370fe2b87 100644
 --- a/lib/efi_loader/efi_capsule.c
