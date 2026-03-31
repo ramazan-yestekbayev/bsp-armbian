@@ -1,0 +1,24 @@
+From f2e832e0e050456971e3210fc3ea83c186257e6d Mon Sep 17 00:00:00 2001
+From: ramazan-yestekbayev <ramazan.yestekbayev@sintecs.eu>
+Date: Tue, 31 Mar 2026 14:53:17 +0300
+Subject: [PATCH] rtc: pcf85063: drop unnecessary common.h include
+
+---
+ drivers/rtc/pcf85063.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/rtc/pcf85063.c b/drivers/rtc/pcf85063.c
+index 07b54b615a7..ee6b3f6b015 100644
+--- a/drivers/rtc/pcf85063.c
++++ b/drivers/rtc/pcf85063.c
+@@ -11,7 +11,6 @@
+  * reference pcf8563.c
+  */
+ 
+-#include <common.h>
+ #include <command.h>
+ #include <dm.h>
+ #include <log.h>
+-- 
+2.43.0
+

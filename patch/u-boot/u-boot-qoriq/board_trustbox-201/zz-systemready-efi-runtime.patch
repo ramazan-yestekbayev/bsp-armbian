@@ -1,0 +1,110 @@
+From dc7134c3accae8eec8f903f24470cbd5a2a27944 Mon Sep 17 00:00:00 2001
+From: ramazan-yestekbayev <ramazan.yestekbayev@sintecs.eu>
+Date: Tue, 31 Mar 2026 16:43:24 +0300
+Subject: [PATCH] efi: correct runtime service advertisement and capsule
+ handling
+
+---
+ lib/efi_loader/efi_capsule.c | 48 +++++++++++++++++++++++++++++++++---
+ lib/efi_loader/efi_runtime.c | 15 ++++++++---
+ 2 files changed, 56 insertions(+), 7 deletions(-)
+
+diff --git a/lib/efi_loader/efi_capsule.c b/lib/efi_loader/efi_capsule.c
+index f8a4a7c6ef4..d0cb7395884 100644
+--- a/lib/efi_loader/efi_capsule.c
++++ b/lib/efi_loader/efi_capsule.c
+@@ -742,20 +742,62 @@ efi_status_t EFIAPI efi_update_capsule(
+ 		u64 scatter_gather_list)
+ {
+ 	struct efi_capsule_header *capsule;
++	u32 valid_flags = CAPSULE_FLAGS_PERSIST_ACROSS_RESET |
++			  CAPSULE_FLAGS_POPULATE_SYSTEM_TABLE |
++			  CAPSULE_FLAGS_INITIATE_RESET |
++			  FW_ACCEPT_OS;
+ 	unsigned int i;
++	bool need_reset = false;
+ 	efi_status_t ret;
+ 
+ 	EFI_ENTRY("%p, %zu, %llu\n", capsule_header_array, capsule_count,
+ 		  scatter_gather_list);
+ 
+-	if (!capsule_count) {
++	if (!capsule_header_array || !capsule_count) {
+ 		ret = EFI_INVALID_PARAMETER;
+ 		goto out;
+ 	}
+ 
+ 	ret = EFI_SUCCESS;
+-	for (i = 0, capsule = *capsule_header_array; i < capsule_count;
+-	     i++, capsule = *(++capsule_header_array)) {
++	for (i = 0; i < capsule_count; i++) {
++		capsule = capsule_header_array[i];
++		if (!capsule) {
++			ret = EFI_INVALID_PARAMETER;
++			goto out;
++		}
++
++		/*
++		 * Reject malformed service arguments before checking capsule
++		 * type
++		 */
++		if (capsule->flags & ~valid_flags) {
++			ret = EFI_INVALID_PARAMETER;
++			goto out;
++		}
++
++		if ((capsule->flags & CAPSULE_FLAGS_POPULATE_SYSTEM_TABLE) &&
++		    !(capsule->flags & CAPSULE_FLAGS_PERSIST_ACROSS_RESET)) {
++			ret = EFI_INVALID_PARAMETER;
++			goto out;
++		}
++
++		if ((capsule->flags & CAPSULE_FLAGS_INITIATE_RESET) &&
++		    !(capsule->flags & CAPSULE_FLAGS_PERSIST_ACROSS_RESET)) {
++			ret = EFI_INVALID_PARAMETER;
++			goto out;
++		}
++
++		if (capsule->flags & CAPSULE_FLAGS_PERSIST_ACROSS_RESET)
++			need_reset = true;
++	}
++
++	if (need_reset && !scatter_gather_list) {
++		ret = EFI_INVALID_PARAMETER;
++		goto out;
++	}
++
++	for (i = 0; i < capsule_count; i++) {
++		capsule = capsule_header_array[i];
+ 		/* sanity check */
+ 		if (capsule->header_size < sizeof(*capsule) ||
+ 		    capsule->capsule_image_size < sizeof(*capsule)) {
+diff --git a/lib/efi_loader/efi_runtime.c b/lib/efi_loader/efi_runtime.c
+index a5bd6ac6d79..d6f3a2194c7 100644
+--- a/lib/efi_loader/efi_runtime.c
++++ b/lib/efi_loader/efi_runtime.c
+@@ -129,10 +129,17 @@ efi_status_t efi_init_runtime_supported(void)
+ 	rt_table->version = EFI_RT_PROPERTIES_TABLE_VERSION;
+ 	rt_table->length = sizeof(struct efi_rt_properties_table);
+ 	rt_table->runtime_services_supported =
+-				EFI_RT_SUPPORTED_GET_VARIABLE |
+-				EFI_RT_SUPPORTED_GET_NEXT_VARIABLE_NAME |
+-				EFI_RT_SUPPORTED_SET_VIRTUAL_ADDRESS_MAP |
+-				EFI_RT_SUPPORTED_CONVERT_POINTER;
++			EFI_RT_SUPPORTED_GET_TIME |
++			EFI_RT_SUPPORTED_SET_TIME |
++			EFI_RT_SUPPORTED_SET_VIRTUAL_ADDRESS_MAP |
++			EFI_RT_SUPPORTED_CONVERT_POINTER |
++			EFI_RT_SUPPORTED_GET_VARIABLE |
++			EFI_RT_SUPPORTED_GET_NEXT_VARIABLE_NAME |
++			EFI_RT_SUPPORTED_SET_VARIABLE |
++			EFI_RT_SUPPORTED_QUERY_VARIABLE_INFO |
++			EFI_RT_SUPPORTED_UPDATE_CAPSULE |
++			EFI_RT_SUPPORTED_QUERY_CAPSULE_CAPABILITIES |
++			EFI_RT_SUPPORTED_RESET_SYSTEM;
+ 
+ 	if (IS_ENABLED(CONFIG_EFI_VARIABLE_FILE_STORE))
+ 		rt_table->runtime_services_supported |=
+-- 
+2.43.0
+
