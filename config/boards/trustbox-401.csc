@@ -8,11 +8,11 @@ IMAGE_PARTITION_TABLE="msdos"
 OFFSET=32
 
 RCWPATH=( \
-	["sd"]="trustbox-xl/NN_NNQNNPNP_3040_0506/rcw_1600_sdboot.bin" \
+    ["sd"]="tbe401/NN_NNQNNPNP_3040_0506/rcw_1600_sdboot.bin" \
 )
 
 RCWSOURCE='https://github.com/Scalys/rcw.git'
-RCWBRANCH='branch:trustbox-2012'
+RCWBRANCH='branch:trusstbox-2412'
 
 OPTEE_PLATFORM='ls-ls1046ardb'
 
